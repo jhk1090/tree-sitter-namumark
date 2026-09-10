@@ -19,44 +19,40 @@ typedef struct {
   uint8_t stack[256];
 } Scanner;
 
-// [핵심 해결]: 중첩 레벨(depth)을 계산하며 자신에게 맞는 '}}}'가 있는지 검사
+// [수정]: 미리 읽기 시 skip(true)을 쓰지 않고 false로 진행하여 앞의 토큰 영역을 유실시키지 않음
 static bool has_matching_closing_brace(TSLexer *lexer) {
-  lexer->mark_end(lexer);
-
-  int current_depth = 1; // 현재 블록 시작으로 인해 depth = 1
+  int current_depth = 1;
 
   while (!lexer->eof(lexer)) {
-    // 1. '}}}' 탐색 (닫는 기호)
     if (lexer->lookahead == '}') {
-      lexer->advance(lexer, true);
+      lexer->advance(lexer, false); // skip = false
       if (lexer->lookahead == '}') {
-        lexer->advance(lexer, true);
+        lexer->advance(lexer, false);
         if (lexer->lookahead == '}') {
           current_depth--;
           if (current_depth == 0) {
-            return true; // 현재 블록과 상응하는 짝 발견!
+            return true;
           }
           continue;
         }
       }
     } 
-    // 2. '{{{' 탐색 (중첩으로 열리는 블록)
     else if (lexer->lookahead == '{') {
-      lexer->advance(lexer, true);
+      lexer->advance(lexer, false); // skip = false
       if (lexer->lookahead == '{') {
-        lexer->advance(lexer, true);
+        lexer->advance(lexer, false);
         if (lexer->lookahead == '{') {
-          current_depth++; // 내부에서 다른 블록이 열림
+          current_depth++;
           continue;
         }
       }
     } 
     else {
-      lexer->advance(lexer, true);
+      lexer->advance(lexer, false); // skip = false
     }
   }
 
-  return false; // EOF까지 자신과 매칭되는 짝을 찾지 못함
+  return false;
 }
 
 void *tree_sitter_namumark_external_scanner_create() {
@@ -106,6 +102,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           if (lexer->lookahead == '}') {
             lexer->advance(lexer, false);
 
+            lexer->mark_end(lexer); // END 토큰 끝지점 고정
             scanner->depth--;
             lexer->result_symbol = (top_type == BLOCK_TYPE_WIKI) ? WIKI_BLOCK_END : NOWIKI_END;
             return true;
@@ -138,7 +135,10 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
                     lexer->advance(lexer, false);
 
                     if (valid_symbols[WIKI_BLOCK_START]) {
-                      // 중첩 레벨을 고려하여 자기 짝이 맞는지 미리 검사
+                      // [핵심]: 9글자를 소비한 시점([0, 9])을 토큰의 마감 위치로 명시적으로 고정
+                      lexer->mark_end(lexer);
+
+                      // 그 이후 미리 읽기 실행
                       if (!has_matching_closing_brace(lexer)) {
                         return false;
                       }
@@ -158,6 +158,8 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
 
         // {{{ (nowiki) 체크
         if (valid_symbols[NOWIKI_START]) {
+          lexer->mark_end(lexer); // [0, 3] 지점 마감 고정
+
           if (!has_matching_closing_brace(lexer)) {
             return false;
           }
