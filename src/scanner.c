@@ -1,6 +1,7 @@
 #include "tree_sitter/parser.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 enum TokenType {
   WIKI_BLOCK_START,
@@ -52,16 +53,15 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
 
-  // 1. END 토큰 매칭 (}}})
-  if (lexer->lookahead == '}') {
-    // 현재 스택에 열려있는 블록이 있는지 확인
-    if (scanner->depth > 0) {
-      uint8_t top_type = scanner->stack[scanner->depth - 1];
+  // 1. WIKI_BLOCK_END 또는 NOWIKI_END 검사
+  if (scanner->depth > 0) {
+    uint8_t top_type = scanner->stack[scanner->depth - 1];
 
-      // 파서가 END 토큰을 허용하는 상태이거나, WIKI 블록 내부일 때
-      if ((top_type == BLOCK_TYPE_WIKI && valid_symbols[WIKI_BLOCK_END]) ||
-          (top_type == BLOCK_TYPE_NOWIKI && valid_symbols[NOWIKI_END])) {
-        
+    if ((top_type == BLOCK_TYPE_WIKI && valid_symbols[WIKI_BLOCK_END]) ||
+        (top_type == BLOCK_TYPE_NOWIKI && valid_symbols[NOWIKI_END])) {
+      
+      // 스캐너 진입 시점의 공백/줄바꿈은 건너뛰지 않고, 정확히 '}' 문자인지 확인
+      if (lexer->lookahead == '}') {
         lexer->advance(lexer, false);
         if (lexer->lookahead == '}') {
           lexer->advance(lexer, false);
@@ -77,7 +77,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
   }
 
-  // 2. START 토큰 매칭 ({{{#!wiki 및 {{{)
+  // 2. WIKI_BLOCK_START 또는 NOWIKI_START 검사
   if (lexer->lookahead == '{') {
     lexer->advance(lexer, false);
     if (lexer->lookahead == '{') {
@@ -85,7 +85,6 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       if (lexer->lookahead == '{') {
         lexer->advance(lexer, false);
 
-        // {{{#!wiki 체크
         if (lexer->lookahead == '#') {
           lexer->advance(lexer, false);
           if (lexer->lookahead == '!') {
@@ -113,7 +112,6 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           }
         }
 
-        // {{{ (nowiki) 체크
         if (valid_symbols[NOWIKI_START]) {
           if (scanner->depth < 256) {
             scanner->stack[scanner->depth++] = BLOCK_TYPE_NOWIKI;
