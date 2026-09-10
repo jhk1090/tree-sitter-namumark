@@ -1,0 +1,168 @@
+[
+  {
+    "type": "attribute",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "nowiki_content",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "nowiki_inline",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "nowiki_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "nowiki_end",
+          "named": true
+        },
+        {
+          "type": "nowiki_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "source_file",
+    "named": true,
+    "root": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "nowiki_inline",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        },
+        {
+          "type": "wiki_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "text",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "wiki_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "wiki_block_content",
+          "named": true
+        },
+        {
+          "type": "wiki_block_end",
+          "named": true
+        },
+        {
+          "type": "wiki_block_header",
+          "named": true
+        },
+        {
+          "type": "wiki_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "wiki_block_content",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "nowiki_inline",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        },
+        {
+          "type": "wiki_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "wiki_block_header",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "\n",
+    "named": false
+  },
+  {
+    "type": "=",
+    "named": false
+  },
+  {
+    "type": "nowiki_end",
+    "named": true
+  },
+  {
+    "type": "nowiki_start",
+    "named": true
+  },
+  {
+    "type": "wiki_block_end",
+    "named": true
+  },
+  {
+    "type": "wiki_block_start",
+    "named": true
+  },
+  {
+    "type": "{",
+    "named": false
+  },
+  {
+    "type": "}",
+    "named": false
+  }
+]

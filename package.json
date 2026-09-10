@@ -1,0 +1,23 @@
+{
+  "name": "tree-sitter-theseed",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "build": "node-gyp rebuild",
+    "test": "tree-sitter test",
+    "playground": "tree-sitter playground",
+    "parse": "tree-sitter parse test.namu",
+    "debug": "tree-sitter parse test.namu -d"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "prebuildify": "^6.0.1",
+    "tree-sitter-cli": "^0.27.0"
+  },
+  "dependencies": {
+    "tree-sitter": "^0.25.1"
+  }
+}
