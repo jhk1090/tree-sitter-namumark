@@ -7,12 +7,15 @@ enum TokenType {
   WIKI_BLOCK_START,
   NOWIKI_START,
   WIKI_BLOCK_END,
-  NOWIKI_END
+  NOWIKI_END,
+  NOWIKI_NEST_OPEN,
+  NOWIKI_NEST_CLOSE
 };
 
 enum BlockType {
   BLOCK_TYPE_WIKI,
-  BLOCK_TYPE_NOWIKI
+  BLOCK_TYPE_NOWIKI,
+  BLOCK_TYPE_NOWIKI_NEST
 };
 
 typedef struct {
@@ -95,18 +98,18 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 
 bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
+  uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
 
   // 1. END 토큰 매칭 (}}})
   if (scanner->depth > 0) {
-    uint8_t top_type = scanner->stack[scanner->depth - 1];
-
     if ((top_type == BLOCK_TYPE_WIKI && valid_symbols[WIKI_BLOCK_END]) ||
-        (top_type == BLOCK_TYPE_NOWIKI && valid_symbols[NOWIKI_END])) {
+        (top_type == BLOCK_TYPE_NOWIKI && valid_symbols[NOWIKI_END]) ||
+        (top_type == BLOCK_TYPE_NOWIKI_NEST && valid_symbols[NOWIKI_NEST_CLOSE])) {
       
       if (lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
         lexer->mark_end(lexer);
         scanner->depth--;
-        lexer->result_symbol = (top_type == BLOCK_TYPE_WIKI) ? WIKI_BLOCK_END : NOWIKI_END;
+        lexer->result_symbol = (top_type == BLOCK_TYPE_WIKI) ? WIKI_BLOCK_END : (top_type == BLOCK_TYPE_NOWIKI) ?  NOWIKI_END : NOWIKI_NEST_CLOSE;
         return true;
       }
     }
@@ -132,6 +135,20 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           lexer->result_symbol = WIKI_BLOCK_START;
           return true;
         }
+      }
+
+      if (top_type == BLOCK_TYPE_NOWIKI && valid_symbols[NOWIKI_NEST_OPEN]) {
+        lexer->mark_end(lexer);
+
+        if (!has_matching_closing_brace(lexer)) {
+          return false;
+        }
+        
+        if (scanner->depth < 256) {
+          scanner->stack[scanner->depth++] = BLOCK_TYPE_NOWIKI_NEST;
+        }
+        lexer->result_symbol = NOWIKI_NEST_OPEN;
+        return true;
       }
 
       // {{{ (nowiki) 체크

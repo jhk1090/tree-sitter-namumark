@@ -167,12 +167,35 @@
         "type": "CHOICE",
         "members": [
           {
+            "type": "SYMBOL",
+            "name": "_nowiki_nest_open"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "_nowiki_nest_close"
+          },
+          {
             "type": "PATTERN",
-            "value": "[^}]+"
+            "value": "[^{}\\r\\n]+"
+          },
+          {
+            "type": "PATTERN",
+            "value": "\\r?\\n"
           },
           {
             "type": "STRING",
-            "value": "}"
+            "value": "{"
+          },
+          {
+            "type": "TOKEN",
+            "content": {
+              "type": "PREC",
+              "value": -10,
+              "content": {
+                "type": "STRING",
+                "value": "}"
+              }
+            }
           }
         ]
       }
@@ -230,6 +253,14 @@
     {
       "type": "SYMBOL",
       "name": "nowiki_end"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_nowiki_nest_open"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_nowiki_nest_close"
     }
   ],
   "inline": [],

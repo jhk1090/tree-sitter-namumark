@@ -9,6 +9,8 @@ module.exports = grammar({
     $.nowiki_start,
     $.wiki_block_end,
     $.nowiki_end,
+    $._nowiki_nest_open,
+    $._nowiki_nest_close
   ],
 
   rules: {
@@ -57,8 +59,12 @@ module.exports = grammar({
 
     nowiki_content: $ => repeat1(
       choice(
-        /[^}]+/,
-        '}'
+        $._nowiki_nest_open,
+        $._nowiki_nest_close,
+        /[^{}\r\n]+/,
+        /\r?\n/,
+        '{',
+        token(prec(-10, '}'))
       )
     ),
 
