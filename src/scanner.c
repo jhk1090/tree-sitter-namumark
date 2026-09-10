@@ -76,6 +76,45 @@ static bool consume_newline(TSLexer *lexer) {
   return true;
 }
 
+// 허용 언어목록 검사 함수
+static bool consume_language(TSLexer *lexer) {
+  if (lexer->lookahead == 'j') {
+    lexer->advance(lexer, false);
+    if (lexer->lookahead == 'a') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == 'v') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead == 'a') {
+          lexer->advance(lexer, false);
+          if (consume_string(lexer, "script")) {
+            return true;
+          }
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  static const char *const OTHER_LANGUAGES[] = {
+    "basic", "cpp", "csharp", "css", "erlang", "go", "html",
+    "json", "kotlin", "lisp", "lua", "markdown", "objectivec",
+    "perl", "php", "powershell", "python", "ruby", "rust",
+    "sh", "sql", "swift", "typescript", "xml"
+  };
+  static const size_t OTHER_COUNT = sizeof(OTHER_LANGUAGES) / sizeof(OTHER_LANGUAGES[0]);
+
+  for (size_t i = 0; i < OTHER_COUNT; i++) {
+    if (lexer->lookahead == OTHER_LANGUAGES[i][0]) {
+      if (consume_string(lexer, OTHER_LANGUAGES[i])) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 static bool has_matching_closing_brace(TSLexer *lexer) {
   int current_depth = 1;
 
@@ -197,8 +236,13 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
             return match_token(lexer, scanner, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING);
           }
           if (consume_string(lexer, "s")) {
-            if (consume_string(lexer, "yntax") && valid_symbols[SYNTAX_BLOCK_START]) {
-              return match_token(lexer, scanner, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
+            if (consume_string(lexer, "yntax")) {
+              if (lexer->lookahead == ' ') {
+                lexer->advance(lexer, false);
+                if (consume_language(lexer) && valid_symbols[SYNTAX_BLOCK_START]) {
+                  return match_token(lexer, scanner, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
+                }
+              }
             }
             if (consume_string(lexer, "tyle") && consume_newline(lexer) && valid_symbols[STYLE_BLOCK_START]) {
               return match_token(lexer, scanner, STYLE_BLOCK_START, BLOCK_TYPE_STYLE);
