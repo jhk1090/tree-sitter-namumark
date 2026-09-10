@@ -1,0 +1,9 @@
+- heading을 추가해서 heading-block으로 구성하게 하고, heading을 기준으로 if, folding, wiki가 일반 text로 처리되도록. 단, nowiki류는 먹어버림
+- 여러 마크업 추가 (bold, italic, strike)
+- 이스케이프 추가
+- scaleText, colorText 추가
+- 링크 추가
+- 테이블 추가
+- 주석 추가
+- 매크로 추가
+- 매개변수 추가
