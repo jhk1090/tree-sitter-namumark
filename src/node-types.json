@@ -5,12 +5,205 @@
     "fields": {}
   },
   {
-    "type": "nowiki_content",
+    "type": "folding_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "folding_block",
+          "named": true
+        },
+        {
+          "type": "folding_block_end",
+          "named": true
+        },
+        {
+          "type": "folding_block_header",
+          "named": true
+        },
+        {
+          "type": "folding_block_start",
+          "named": true
+        },
+        {
+          "type": "html_block",
+          "named": true
+        },
+        {
+          "type": "if_block",
+          "named": true
+        },
+        {
+          "type": "latex_block",
+          "named": true
+        },
+        {
+          "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "style_block",
+          "named": true
+        },
+        {
+          "type": "syntax_block",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        },
+        {
+          "type": "wiki_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "folding_block_header",
     "named": true,
     "fields": {}
   },
   {
-    "type": "nowiki_inline",
+    "type": "html_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "html_block_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "html_block_end",
+          "named": true
+        },
+        {
+          "type": "html_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "html_block_content",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "if_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "folding_block",
+          "named": true
+        },
+        {
+          "type": "html_block",
+          "named": true
+        },
+        {
+          "type": "if_block",
+          "named": true
+        },
+        {
+          "type": "if_block_end",
+          "named": true
+        },
+        {
+          "type": "if_block_header",
+          "named": true
+        },
+        {
+          "type": "if_block_start",
+          "named": true
+        },
+        {
+          "type": "latex_block",
+          "named": true
+        },
+        {
+          "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "style_block",
+          "named": true
+        },
+        {
+          "type": "syntax_block",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        },
+        {
+          "type": "wiki_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "if_block_header",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "latex_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "latex_block_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "latex_block_end",
+          "named": true
+        },
+        {
+          "type": "latex_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "latex_block_content",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "nowiki",
     "named": true,
     "fields": {
       "content": {
@@ -40,6 +233,11 @@
     }
   },
   {
+    "type": "nowiki_content",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "source_file",
     "named": true,
     "root": true,
@@ -49,7 +247,31 @@
       "required": false,
       "types": [
         {
-          "type": "nowiki_inline",
+          "type": "folding_block",
+          "named": true
+        },
+        {
+          "type": "html_block",
+          "named": true
+        },
+        {
+          "type": "if_block",
+          "named": true
+        },
+        {
+          "type": "latex_block",
+          "named": true
+        },
+        {
+          "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "style_block",
+          "named": true
+        },
+        {
+          "type": "syntax_block",
           "named": true
         },
         {
@@ -62,6 +284,76 @@
         }
       ]
     }
+  },
+  {
+    "type": "style_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "style_block_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "style_block_end",
+          "named": true
+        },
+        {
+          "type": "style_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "style_block_content",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "syntax_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "syntax_block_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "syntax_block_end",
+          "named": true
+        },
+        {
+          "type": "syntax_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "syntax_block_content",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "text",
@@ -77,7 +369,39 @@
       "required": true,
       "types": [
         {
-          "type": "wiki_block_content",
+          "type": "folding_block",
+          "named": true
+        },
+        {
+          "type": "html_block",
+          "named": true
+        },
+        {
+          "type": "if_block",
+          "named": true
+        },
+        {
+          "type": "latex_block",
+          "named": true
+        },
+        {
+          "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "style_block",
+          "named": true
+        },
+        {
+          "type": "syntax_block",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        },
+        {
+          "type": "wiki_block",
           "named": true
         },
         {
@@ -90,29 +414,6 @@
         },
         {
           "type": "wiki_block_start",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "wiki_block_content",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "nowiki_inline",
-          "named": true
-        },
-        {
-          "type": "text",
-          "named": true
-        },
-        {
-          "type": "wiki_block",
           "named": true
         }
       ]
@@ -142,11 +443,59 @@
     "named": false
   },
   {
+    "type": "folding_block_end",
+    "named": true
+  },
+  {
+    "type": "folding_block_start",
+    "named": true
+  },
+  {
+    "type": "html_block_end",
+    "named": true
+  },
+  {
+    "type": "html_block_start",
+    "named": true
+  },
+  {
+    "type": "if_block_end",
+    "named": true
+  },
+  {
+    "type": "if_block_start",
+    "named": true
+  },
+  {
+    "type": "latex_block_end",
+    "named": true
+  },
+  {
+    "type": "latex_block_start",
+    "named": true
+  },
+  {
     "type": "nowiki_end",
     "named": true
   },
   {
     "type": "nowiki_start",
+    "named": true
+  },
+  {
+    "type": "style_block_end",
+    "named": true
+  },
+  {
+    "type": "style_block_start",
+    "named": true
+  },
+  {
+    "type": "syntax_block_end",
+    "named": true
+  },
+  {
+    "type": "syntax_block_start",
     "named": true
   },
   {
