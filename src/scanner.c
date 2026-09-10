@@ -64,6 +64,18 @@ static bool consume_string(TSLexer *lexer, const char *str) {
   return true;
 }
 
+// 개행 문자(\n 또는 \r\n)를 소비하는 도우미 함수
+static bool consume_newline(TSLexer *lexer) {
+  if (lexer->lookahead == '\r') {
+    lexer->advance(lexer, false);
+  }
+  if (lexer->lookahead != '\n') {
+    return false;
+  }
+  lexer->advance(lexer, false);
+  return true;
+}
+
 static bool has_matching_closing_brace(TSLexer *lexer) {
   int current_depth = 1;
 
@@ -184,8 +196,13 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           if (consume_string(lexer, "folding") && valid_symbols[FOLDING_BLOCK_START]) {
             return match_token(lexer, scanner, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING);
           }
-          if (consume_string(lexer, "syntax") && valid_symbols[SYNTAX_BLOCK_START]) {
-            return match_token(lexer, scanner, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
+          if (consume_string(lexer, "s")) {
+            if (consume_string(lexer, "yntax") && valid_symbols[SYNTAX_BLOCK_START]) {
+              return match_token(lexer, scanner, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
+            }
+            if (consume_string(lexer, "tyle") && consume_newline(lexer) && valid_symbols[STYLE_BLOCK_START]) {
+              return match_token(lexer, scanner, STYLE_BLOCK_START, BLOCK_TYPE_STYLE);
+            }
           }
           if (consume_string(lexer, "wiki") && valid_symbols[WIKI_BLOCK_START]) {
             return match_token(lexer, scanner, WIKI_BLOCK_START, BLOCK_TYPE_WIKI);
@@ -193,10 +210,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           if (consume_string(lexer, "html") && valid_symbols[HTML_BLOCK_START]) {
             return match_token(lexer, scanner, HTML_BLOCK_START, BLOCK_TYPE_HTML);
           }
-          if (consume_string(lexer, "style") && valid_symbols[STYLE_BLOCK_START]) {
-            return match_token(lexer, scanner, STYLE_BLOCK_START, BLOCK_TYPE_STYLE);
-          }
-          if (consume_string(lexer, "latex") && valid_symbols[LATEX_BLOCK_START]) {
+          if (consume_string(lexer, "latex") && consume_newline(lexer) && valid_symbols[LATEX_BLOCK_START]) {
             return match_token(lexer, scanner, LATEX_BLOCK_START, BLOCK_TYPE_LATEX);
           }
         }
