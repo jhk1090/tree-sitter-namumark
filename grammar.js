@@ -154,20 +154,21 @@ module.exports = grammar({
 
     wiki_block_header: $ => repeat1(
       choice(
-        $.attribute,
-        /[^\n="'\s]+/
+        $._header_text
+        // $.attribute,
+        // /[^\n="'\s]+/
       )
     ),
 
-    attribute: $ => seq(
-      field('key', /[a-zA-Z_][a-zA-Z0-9_-]*/),
-      '=',
-      field('value', choice(
-        /\"[^\"]*\"/,
-        /\'[^\']*\'/,
-        /[^\s"'>]+/
-      ))
-    ),
+    // attribute: $ => seq(
+    //   field('key', /[a-zA-Z_][a-zA-Z0-9_-]*/),
+    //   '=',
+    //   field('value', choice(
+    //     /\"[^\"]*\"/,
+    //     /\'[^\']*\'/,
+    //     /[^\s"'>]+/
+    //   ))
+    // ),
 
     _header_text: $ => /[^\n\s]+/,
 

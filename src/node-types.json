@@ -1,10 +1,5 @@
 [
   {
-    "type": "attribute",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "folding_block",
     "named": true,
     "fields": {},
@@ -422,24 +417,10 @@
   {
     "type": "wiki_block_header",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "attribute",
-          "named": true
-        }
-      ]
-    }
+    "fields": {}
   },
   {
     "type": "\n",
-    "named": false
-  },
-  {
-    "type": "=",
     "named": false
   },
   {
