@@ -78,41 +78,89 @@ static bool consume_newline(TSLexer *lexer) {
 
 // 허용 언어목록 검사 함수
 static bool consume_language(TSLexer *lexer) {
-  if (lexer->lookahead == 'j') {
-    lexer->advance(lexer, false);
-    if (lexer->lookahead == 'a') {
+  switch (lexer->lookahead) {
+    case 'c':
       lexer->advance(lexer, false);
-      if (lexer->lookahead == 'v') {
+      if (lexer->lookahead == 'p') {
         lexer->advance(lexer, false);
-        if (lexer->lookahead == 'a') {
+        if (lexer->lookahead == 'p') {
           lexer->advance(lexer, false);
-          if (consume_string(lexer, "script")) {
-            return true;
-          }
+          return true;
+        }
+      } else if (lexer->lookahead == 's') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead == 's') {
+          lexer->advance(lexer, false);
+          return true;
+        }
+        if (consume_string(lexer, "harp")) {
           return true;
         }
       }
-    }
-    return false;
-  }
+      return false;
 
-  static const char *const OTHER_LANGUAGES[] = {
-    "basic", "cpp", "csharp", "css", "erlang", "go", "html",
-    "json", "kotlin", "lisp", "lua", "markdown", "objectivec",
-    "perl", "php", "powershell", "python", "ruby", "rust",
-    "sh", "sql", "swift", "typescript", "xml"
-  };
-  static const size_t OTHER_COUNT = sizeof(OTHER_LANGUAGES) / sizeof(OTHER_LANGUAGES[0]);
-
-  for (size_t i = 0; i < OTHER_COUNT; i++) {
-    if (lexer->lookahead == OTHER_LANGUAGES[i][0]) {
-      if (consume_string(lexer, OTHER_LANGUAGES[i])) {
+    case 'j':
+      lexer->advance(lexer, false);
+      if (consume_string(lexer, "ava")) {
+        consume_string(lexer, "script");
         return true;
       }
-    }
-  }
+      if (consume_string(lexer, "son")) {
+        return true;
+      }
+      return false;
 
-  return false;
+    case 'l':
+      lexer->advance(lexer, false);
+      if (consume_string(lexer, "isp")) return true;
+      if (consume_string(lexer, "ua")) return true; 
+      return false;
+
+    case 'p':
+      lexer->advance(lexer, false);
+      if (consume_string(lexer, "erl")) return true;
+      if (consume_string(lexer, "hp")) return true;
+      if (consume_string(lexer, "owershell")) return true;
+      if (consume_string(lexer, "ython")) return true;
+      return false;
+
+    case 'r':
+      lexer->advance(lexer, false);
+      if (consume_string(lexer, "uby")) return true;
+      if (consume_string(lexer, "ust")) return true;
+      return false;
+
+    case 's':
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == 'h') {
+        lexer->advance(lexer, false);
+        return true;
+      }
+      if (lexer->lookahead == 'q') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead == 'l') {
+          lexer->advance(lexer, false);
+          return true;
+        }
+      }
+      if (consume_string(lexer, "wift")) {
+        return true;
+      }
+      return false;
+
+    case 'b': return consume_string(lexer, "basic");
+    case 'e': return consume_string(lexer, "erlang");
+    case 'g': return consume_string(lexer, "go");
+    case 'h': return consume_string(lexer, "html");
+    case 'k': return consume_string(lexer, "kotlin");
+    case 'm': return consume_string(lexer, "markdown");
+    case 'o': return consume_string(lexer, "objectivec");
+    case 't': return consume_string(lexer, "typescript");
+    case 'x': return consume_string(lexer, "xml");
+
+    default:
+      return false;
+  }
 }
 
 static bool has_matching_closing_brace(TSLexer *lexer) {
