@@ -31,6 +31,8 @@ module.exports = grammar({
     $.latex_block_end,
     $._latex_block_nest_open,
     $._latex_block_nest_close,
+    $.scale_block_start,
+    $.scale_block_end
   ],
 
   rules: {
@@ -45,6 +47,7 @@ module.exports = grammar({
       $.html_block,
       $.style_block,
       $.latex_block,
+      $.scale_block,
       $.text,
     ),
 
@@ -158,6 +161,13 @@ module.exports = grammar({
         // $.attribute,
         // /[^\n="'\s]+/
       )
+    ),
+
+    scale_block: $ => seq(
+      $.scale_block_start,
+      /\r?\n| /,
+      optional(repeat1($._node)),
+      $.scale_block_end
     ),
 
     // attribute: $ => seq(

@@ -30,6 +30,8 @@ enum TokenType {
   LATEX_BLOCK_END,
   LATEX_BLOCK_NEST_OPEN,
   LATEX_BLOCK_NEST_CLOSE,
+  SCALE_BLOCK_START,
+  SCALE_BLOCK_END
 };
 
 enum BlockType {
@@ -46,6 +48,7 @@ enum BlockType {
   BLOCK_TYPE_STYLE_NEST,
   BLOCK_TYPE_LATEX,
   BLOCK_TYPE_LATEX_NEST,
+  BLOCK_TYPE_SCALE
 };
 
 typedef struct {
@@ -260,6 +263,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       case BLOCK_TYPE_STYLE_NEST: end_symbol = STYLE_BLOCK_NEST_CLOSE; break;
       case BLOCK_TYPE_LATEX: end_symbol = LATEX_BLOCK_END; break;
       case BLOCK_TYPE_LATEX_NEST: end_symbol = LATEX_BLOCK_NEST_CLOSE; break;
+      case BLOCK_TYPE_SCALE: end_symbol = SCALE_BLOCK_END; break;
     }
     
     if (valid_symbols[end_symbol] && lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
@@ -304,6 +308,16 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           }
           if (consume_string(lexer, "latex") && consume_newline(lexer) && valid_symbols[LATEX_BLOCK_START]) {
             return match_token(lexer, scanner, LATEX_BLOCK_START, BLOCK_TYPE_LATEX);
+          }
+        }
+      }
+
+      if (lexer->lookahead == '+' || lexer->lookahead == '-') {
+        if (valid_symbols[SCALE_BLOCK_START]) {
+          lexer->advance(lexer, false);
+          if (lexer->lookahead >= '1' && lexer->lookahead <= '5') {
+            lexer->advance(lexer, false);
+            return match_token(lexer, scanner, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
           }
         }
       }
