@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <ctype.h>
+#include <string.h>
 
 enum TokenType {
   NOWIKI_START,
@@ -31,7 +33,9 @@ enum TokenType {
   LATEX_BLOCK_NEST_OPEN,
   LATEX_BLOCK_NEST_CLOSE,
   SCALE_BLOCK_START,
-  SCALE_BLOCK_END
+  SCALE_BLOCK_END,
+  COLOR_BLOCK_START,
+  COLOR_BLOCK_END,
 };
 
 enum BlockType {
@@ -48,7 +52,8 @@ enum BlockType {
   BLOCK_TYPE_STYLE_NEST,
   BLOCK_TYPE_LATEX,
   BLOCK_TYPE_LATEX_NEST,
-  BLOCK_TYPE_SCALE
+  BLOCK_TYPE_SCALE,
+  BLOCK_TYPE_COLOR
 };
 
 typedef struct {
@@ -56,30 +61,107 @@ typedef struct {
   uint8_t stack[256];
 } Scanner;
 
-// [도우미 함수]: lexer의 현재 위치부터 str 문자열과 일치하는지 순차 검사하며 advance 진행
+// --- Helper 함수들 ---
+
 static bool consume_string(TSLexer *lexer, const char *str) {
   for (const char *c = str; *c != '\0'; c++) {
-    if (lexer->lookahead != *c) {
-      return false;
-    }
+    if (lexer->lookahead != *c) return false;
     lexer->advance(lexer, false);
   }
   return true;
 }
 
-// 개행 문자(\n 또는 \r\n)를 소비하는 도우미 함수
 static bool consume_newline(TSLexer *lexer) {
   if (lexer->lookahead == '\r') {
     lexer->advance(lexer, false);
   }
-  if (lexer->lookahead != '\n') {
-    return false;
-  }
+  if (lexer->lookahead != '\n') return false;
   lexer->advance(lexer, false);
   return true;
 }
 
-// 허용 언어목록 검사 함수
+static bool is_hex_digit(char c) {
+  return (c >= '0' && c <= '9') ||
+         (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F');
+}
+
+// `#` 다음 오는 단일 색상 본문 검사
+static bool consume_single_color(TSLexer *lexer) {
+  char buf[32];
+  int len = 0;
+  bool all_hex = true;
+
+  while (isalnum((unsigned char)lexer->lookahead) && len < 31) {
+    char c = (char)lexer->lookahead;
+    if (!is_hex_digit(c)) {
+      all_hex = false;
+    }
+    buf[len++] = (char)tolower((unsigned char)c);
+    lexer->advance(lexer, false);
+  }
+  buf[len] = '\0';
+
+  if (len == 0) return false;
+
+  // 1. 모든 문자가 Hex이고 길이가 3 또는 6인 경우 Valid Hex
+  if (all_hex && (len == 3 || len == 6)) {
+    return true;
+  }
+
+  // 2. Named Color 목록 매칭
+  static const char *const VALID_COLORS[] = {
+    "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure",
+    "beige", "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood",
+    "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan",
+    "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgreen", "darkgrey", "darkkhaki",
+    "darkmagenta", "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon",
+    "darkseagreen", "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise", "darkviolet",
+    "deeppink", "deepskyblue", "dimgray", "dimgrey", "dodgerblue",
+    "firebrick", "floralwhite", "forestgreen", "fuchsia",
+    "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "green", "greenyellow", "grey",
+    "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki",
+    "lavender", "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral",
+    "lightcyan", "lightgoldenrodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink",
+    "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray", "lightslategrey",
+    "lightsteelblue", "lightyellow", "lime", "limegreen", "linen",
+    "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple",
+    "mediumseagreen", "mediumslateblue", "mediumspringgreen", "mediumturquoise",
+    "mediumvioletred", "midnightblue", "mintcream", "mistyrose", "moccasin",
+    "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange", "orangered", "orchid",
+    "palegoldenrod", "palegreen", "paleturquoise", "palevioletred", "papayawhip", "peachpuff",
+    "peru", "pink", "plum", "powderblue", "purple",
+    "red", "rosybrown", "royalblue",
+    "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver",
+    "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue",
+    "tan", "teal", "thistle", "tomato", "transparent", "turquoise",
+    "violet", "wheat", "white", "whitesmoke", "yellow", "yellowgreen"
+  };
+
+  int count = sizeof(VALID_COLORS) / sizeof(VALID_COLORS[0]);
+  for (int i = 0; i < count; i++) {
+    if (strcmp(buf, VALID_COLORS[i]) == 0) return true;
+  }
+
+  return false;
+}
+
+// 색상 전체 표현식 검사
+static bool consume_color_token(TSLexer *lexer) {
+  // 1. 첫 번째 색상 검사
+  if (!consume_single_color(lexer)) return false;
+
+  // 2. 다크모드 대응
+  if (lexer->lookahead == ',') {
+    lexer->advance(lexer, false);
+    if (lexer->lookahead != '#') return false;
+    lexer->advance(lexer, false);
+    if (!consume_single_color(lexer)) return false;
+  }
+
+  return true;
+}
+
 static bool consume_language(TSLexer *lexer) {
   switch (lexer->lookahead) {
     case 'c':
@@ -96,9 +178,7 @@ static bool consume_language(TSLexer *lexer) {
           lexer->advance(lexer, false);
           return true;
         }
-        if (consume_string(lexer, "harp")) {
-          return true;
-        }
+        if (consume_string(lexer, "harp")) return true;
       }
       return false;
 
@@ -108,9 +188,7 @@ static bool consume_language(TSLexer *lexer) {
         consume_string(lexer, "script");
         return true;
       }
-      if (consume_string(lexer, "son")) {
-        return true;
-      }
+      if (consume_string(lexer, "son")) return true;
       return false;
 
     case 'l':
@@ -146,9 +224,7 @@ static bool consume_language(TSLexer *lexer) {
           return true;
         }
       }
-      if (consume_string(lexer, "wift")) {
-        return true;
-      }
+      if (consume_string(lexer, "wift")) return true;
       return false;
 
     case 'b': return consume_string(lexer, "basic");
@@ -170,21 +246,17 @@ static bool has_matching_closing_brace(TSLexer *lexer) {
   int current_depth = 1;
 
   while (!lexer->eof(lexer)) {
-    // 1. '}}}' 탐색
     if (lexer->lookahead == '}') {
       if (consume_string(lexer, "}}}")) {
         current_depth--;
-        if (current_depth == 0) {
-          return true; // 현재 블록과 상응하는 짝 발견!
-        }
+        if (current_depth == 0) return true;
         continue;
       }
       lexer->advance(lexer, false);
     } 
-    // 2. '{{{' 탐색
     else if (lexer->lookahead == '{') {
       if (consume_string(lexer, "{{{")) {
-        current_depth++; // 내부에서 다른 블록이 열림
+        current_depth++;
         continue;
       }
       lexer->advance(lexer, false);
@@ -198,7 +270,7 @@ static bool has_matching_closing_brace(TSLexer *lexer) {
 }
 
 static bool match_token(TSLexer *lexer, Scanner *scanner, int TOKEN_TYPE, int BLOCK_TYPE) {
-  lexer->mark_end(lexer); // 3글자 소비 지점 고정
+  lexer->mark_end(lexer);
 
   if (!has_matching_closing_brace(lexer)) {
     return false;
@@ -210,6 +282,8 @@ static bool match_token(TSLexer *lexer, Scanner *scanner, int TOKEN_TYPE, int BL
   lexer->result_symbol = TOKEN_TYPE;
   return true;
 }
+
+// --- Lifecycle 함수들 ---
 
 void *tree_sitter_namumark_external_scanner_create() {
   return (Scanner *)calloc(1, sizeof(Scanner));
@@ -241,6 +315,8 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   }
 }
 
+// --- Main Scan ---
+
 bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
@@ -264,6 +340,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       case BLOCK_TYPE_LATEX: end_symbol = LATEX_BLOCK_END; break;
       case BLOCK_TYPE_LATEX_NEST: end_symbol = LATEX_BLOCK_NEST_CLOSE; break;
       case BLOCK_TYPE_SCALE: end_symbol = SCALE_BLOCK_END; break;
+      case BLOCK_TYPE_COLOR: end_symbol = COLOR_BLOCK_END; break;
     }
     
     if (valid_symbols[end_symbol] && lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
@@ -274,13 +351,18 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
   }
 
-  // 2. START 토큰 매칭 ({{{#!wiki 및 {{{)
+  // 2. START 토큰 매칭
   if (lexer->lookahead == '{') {
     if (consume_string(lexer, "{{{")) {
 
-      // 1. '#!' 접두사를 먼저 한 번만 체크
+      // 첫 번째 '#' 문자를 만나면 단 한 번만 소비 후 다음 문자로 분기
       if (lexer->lookahead == '#') {
-        if (consume_string(lexer, "#!")) {
+        lexer->advance(lexer, false); // '#' 소비
+
+        // 2-1. '#!' 블록들 (wiki, syntax, html 등)
+        if (lexer->lookahead == '!') {
+          lexer->advance(lexer, false); // '!' 소비
+
           if (consume_string(lexer, "if") && valid_symbols[IF_BLOCK_START]) {
             return match_token(lexer, scanner, IF_BLOCK_START, BLOCK_TYPE_IF);
           }
@@ -309,9 +391,16 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           if (consume_string(lexer, "latex") && consume_newline(lexer) && valid_symbols[LATEX_BLOCK_START]) {
             return match_token(lexer, scanner, LATEX_BLOCK_START, BLOCK_TYPE_LATEX);
           }
+        } 
+        // 2-2. '#!'가 아니고 바로 색상명이 시작하는 케이스 (COLOR_BLOCK_START)
+        else if (valid_symbols[COLOR_BLOCK_START]) {
+          if (consume_color_token(lexer)) {
+            return match_token(lexer, scanner, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
+          }
         }
       }
 
+      // 글자 크기 블록 ({{{+1 ...}}}, {{{-2 ...}}})
       if (lexer->lookahead == '+' || lexer->lookahead == '-') {
         if (valid_symbols[SCALE_BLOCK_START]) {
           lexer->advance(lexer, false);
@@ -322,7 +411,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         }
       }
 
-      // 2. 중첩(NEST) 블록 검사
+      // 3. NEST 중첩 처리
       if (top_type == BLOCK_TYPE_NOWIKI && valid_symbols[NOWIKI_NEST_OPEN]) {
         return match_token(lexer, scanner, NOWIKI_NEST_OPEN, BLOCK_TYPE_NOWIKI_NEST);
       }
@@ -339,7 +428,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         return match_token(lexer, scanner, LATEX_BLOCK_NEST_OPEN, BLOCK_TYPE_LATEX_NEST);
       }
 
-      // 3. 아무것도 해당되지 않을 때만 NOWIKI로 떨어짐
+      // 4. Default Fallback -> NOWIKI
       if (valid_symbols[NOWIKI_START]) {
         return match_token(lexer, scanner, NOWIKI_START, BLOCK_TYPE_NOWIKI);
       }

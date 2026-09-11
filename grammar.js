@@ -32,7 +32,9 @@ module.exports = grammar({
     $._latex_block_nest_open,
     $._latex_block_nest_close,
     $.scale_block_start,
-    $.scale_block_end
+    $.scale_block_end,
+    $.color_block_start,
+    $.color_block_end,
   ],
 
   rules: {
@@ -48,6 +50,7 @@ module.exports = grammar({
       $.style_block,
       $.latex_block,
       $.scale_block,
+      $.color_block,
       $.text,
     ),
 
@@ -168,6 +171,13 @@ module.exports = grammar({
       /\r?\n| /,
       optional(repeat1($._node)),
       $.scale_block_end
+    ),
+
+    color_block: $ => seq(
+      $.color_block_start,
+      /\r?\n| /,
+      optional(repeat1($._node)),
+      $.color_block_end
     ),
 
     // attribute: $ => seq(

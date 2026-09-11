@@ -1,5 +1,68 @@
 [
   {
+    "type": "color_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "color_block",
+          "named": true
+        },
+        {
+          "type": "color_block_end",
+          "named": true
+        },
+        {
+          "type": "color_block_start",
+          "named": true
+        },
+        {
+          "type": "folding_block",
+          "named": true
+        },
+        {
+          "type": "html_block",
+          "named": true
+        },
+        {
+          "type": "if_block",
+          "named": true
+        },
+        {
+          "type": "latex_block",
+          "named": true
+        },
+        {
+          "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "scale_block",
+          "named": true
+        },
+        {
+          "type": "style_block",
+          "named": true
+        },
+        {
+          "type": "syntax_block",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        },
+        {
+          "type": "wiki_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "folding_block",
     "named": true,
     "fields": {},
@@ -7,6 +70,10 @@
       "multiple": true,
       "required": true,
       "types": [
+        {
+          "type": "color_block",
+          "named": true
+        },
         {
           "type": "folding_block",
           "named": true
@@ -110,6 +177,10 @@
       "multiple": true,
       "required": true,
       "types": [
+        {
+          "type": "color_block",
+          "named": true
+        },
         {
           "type": "folding_block",
           "named": true
@@ -249,6 +320,10 @@
       "required": true,
       "types": [
         {
+          "type": "color_block",
+          "named": true
+        },
+        {
           "type": "folding_block",
           "named": true
         },
@@ -308,6 +383,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "color_block",
+          "named": true
+        },
         {
           "type": "folding_block",
           "named": true
@@ -435,6 +514,10 @@
       "required": true,
       "types": [
         {
+          "type": "color_block",
+          "named": true
+        },
+        {
           "type": "folding_block",
           "named": true
         },
@@ -497,6 +580,14 @@
   {
     "type": "\n",
     "named": false
+  },
+  {
+    "type": "color_block_end",
+    "named": true
+  },
+  {
+    "type": "color_block_start",
+    "named": true
   },
   {
     "type": "folding_block_end",
