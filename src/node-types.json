@@ -8,6 +8,14 @@
       "required": true,
       "types": [
         {
+          "type": "folding_block",
+          "named": true
+        },
+        {
+          "type": "if_block",
+          "named": true
+        },
+        {
           "type": "nowiki",
           "named": true
         },
@@ -23,6 +31,11 @@
     }
   },
   {
+    "type": "block_header",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "bracket_start",
     "named": true,
     "fields": {},
@@ -36,6 +49,60 @@
         },
         {
           "type": "wiki_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "folding_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_content",
+          "named": true
+        },
+        {
+          "type": "block_header",
+          "named": true
+        },
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "folding_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "if_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_content",
+          "named": true
+        },
+        {
+          "type": "block_header",
+          "named": true
+        },
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "if_block_start",
           "named": true
         }
       ]
@@ -104,6 +171,14 @@
       "required": false,
       "types": [
         {
+          "type": "folding_block",
+          "named": true
+        },
+        {
+          "type": "if_block",
+          "named": true
+        },
+        {
           "type": "nowiki",
           "named": true
         },
@@ -126,28 +201,21 @@
   {
     "type": "wiki_block",
     "named": true,
-    "fields": {
-      "content": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "block_content",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": true,
       "required": true,
       "types": [
         {
-          "type": "bracket_end",
+          "type": "block_content",
           "named": true
         },
         {
-          "type": "wiki_block_header",
+          "type": "block_header",
+          "named": true
+        },
+        {
+          "type": "bracket_end",
           "named": true
         },
         {
@@ -158,9 +226,12 @@
     }
   },
   {
-    "type": "wiki_block_header",
-    "named": true,
-    "fields": {}
+    "type": "#!folding",
+    "named": false
+  },
+  {
+    "type": "#!if",
+    "named": false
   },
   {
     "type": "#!wiki",
@@ -168,6 +239,14 @@
   },
   {
     "type": "bracket_end",
+    "named": true
+  },
+  {
+    "type": "folding_block_start",
+    "named": true
+  },
+  {
+    "type": "if_block_start",
     "named": true
   },
   {

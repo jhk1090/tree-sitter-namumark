@@ -271,17 +271,27 @@ static bool has_matching_closing_brace(TSLexer *lexer) {
   return false;
 }
 
-static bool match_token(TSLexer *lexer, Scanner *scanner, int TOKEN_TYPE, int BLOCK_TYPE) {
-  lexer->mark_end(lexer);
+static bool match_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
+  uint8_t token = TOKEN_TYPE;
+  if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
+    if (lexer->lookahead != ' ') {
+      token = NOWIKI_START;
+    }
 
-  if (!has_matching_closing_brace(lexer)) {
-    return false;
+    while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
+      lexer->advance(lexer, false);
+    }
+  }
+
+  if (!consume_newline(lexer)) {
+    token = NOWIKI_START;
   }
 
   if (scanner->depth < 256) {
-    scanner->stack[scanner->depth++] = BLOCK_TYPE;
+    scanner->depth++;
   }
-  lexer->result_symbol = TOKEN_TYPE;
+
+  lexer->result_symbol = token;
   return true;
 }
 
@@ -374,12 +384,12 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         if (lexer->lookahead == '!') {
           lexer->advance(lexer, false); // '!' 소비
 
-          // if (consume_string(lexer, "if") && valid_symbols[IF_BLOCK_START]) {
-          //   return match_token(lexer, scanner, IF_BLOCK_START, BLOCK_TYPE_IF);
-          // }
-          // if (consume_string(lexer, "folding") && valid_symbols[FOLDING_BLOCK_START]) {
-          //   return match_token(lexer, scanner, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING);
-          // }
+          if (valid_symbols[IF_BLOCK_START] && consume_string(lexer, "if")) {
+            return match_token(lexer, scanner, IF_BLOCK_START);
+          }
+          if (valid_symbols[FOLDING_BLOCK_START] && consume_string(lexer, "folding")) {
+            return match_token(lexer, scanner, FOLDING_BLOCK_START);
+          }
           // if (consume_string(lexer, "s")) {
           //   if (consume_string(lexer, "yntax")) {
           //     if (lexer->lookahead == ' ') {
@@ -394,27 +404,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           //   }
           // }
           if (valid_symbols[WIKI_BLOCK_START] && consume_string(lexer, "wiki")) {
-            uint8_t token = WIKI_BLOCK_START;
-            if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
-              if (lexer->lookahead != ' ') {
-                token = NOWIKI_START;
-              }
-  
-              while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
-                lexer->advance(lexer, false);
-              }
-            }
-
-            if (!consume_newline(lexer)) {
-              token = NOWIKI_START;
-            }
-
-            if (scanner->depth < 256) {
-              scanner->depth++;
-            }
-
-            lexer->result_symbol = token;
-            return true;
+            return match_token(lexer, scanner, WIKI_BLOCK_START);
           }
           // if (consume_string(lexer, "html") && valid_symbols[HTML_BLOCK_START]) {
           //   return match_token(lexer, scanner, HTML_BLOCK_START, BLOCK_TYPE_HTML);

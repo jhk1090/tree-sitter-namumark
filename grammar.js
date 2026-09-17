@@ -43,8 +43,8 @@ module.exports = grammar({
 
     _node: $ => choice(
       $.nowiki,
-      // $.if_block,
-      // $.folding_block,
+      $.if_block,
+      $.folding_block,
       // $.syntax_block,
       $.wiki_block,
       // $.html_block,
@@ -55,33 +55,23 @@ module.exports = grammar({
       $.text,
     ),
 
-    // if_block: $ => seq(
-    //   $.if_block_start,
-    //   optional($.if_block_header),
-    //   '\n',
-    //   optional(repeat1($._node)),
-    //   $.if_block_end
-    // ),
+    if_block: $ => seq(
+      $.if_block_start,
+      "#!if",
+      optional($.block_header),
+      /\r?\n/,
+      optional($.block_content),
+      $.bracket_end
+    ),
 
-    // if_block_header: $ => repeat1(
-    //   choice(
-    //     $._header_text
-    //   )
-    // ),
-
-    // folding_block: $ => seq(
-    //   $.folding_block_start,
-    //   optional($.folding_block_header),
-    //   '\n',
-    //   optional(repeat1($._node)),
-    //   $.folding_block_end
-    // ),
-
-    // folding_block_header: $ => repeat1(
-    //   choice(
-    //     $._header_text
-    //   )
-    // ),
+    folding_block: $ => seq(
+      $.folding_block_start,
+      "#!folding",
+      optional($.block_header),
+      /\r?\n/,
+      optional($.block_content),
+      $.bracket_end
+    ),
 
     // syntax_block: $ => seq(
     //   $.syntax_block_start,
@@ -154,21 +144,14 @@ module.exports = grammar({
     wiki_block: $ => prec(1, seq(
       $.wiki_block_start,
       "#!wiki",
-      optional($.wiki_block_header),
+      optional($.block_header),
       /\r?\n/,
-      field('content', optional($.block_content)),
+      optional($.block_content),
       $.bracket_end
     )),
 
+    block_header: $ => repeat1(/[^\n\s]+/),
     block_content: $ => repeat1($._node),
-
-    wiki_block_header: $ => repeat1(
-      choice(
-        $._header_text
-        // $.attribute,
-        // /[^\n="'\s]+/
-      )
-    ),
 
     // scale_block: $ => seq(
     //   $.scale_block_start,
@@ -193,8 +176,6 @@ module.exports = grammar({
     //     /[^\s"'>]+/
     //   ))
     // ),
-
-    _header_text: $ => /[^\n\s]+/,
 
     bracket_start: $ => choice(
       $.wiki_block_start,
