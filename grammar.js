@@ -15,11 +15,207 @@ module.exports = grammar({
     $.latex_block_start,
     $.scale_block_start,
     $.color_block_start,
-    $.bracket_end
+    $.bracket_end,
+    $.heading1_start,
+    $.heading2_start,
+    $.heading3_start,
+    $.heading4_start,
+    $.heading5_start,
+    $.heading6_start,
+    $.hidden_heading1_start,
+    $.hidden_heading2_start,
+    $.hidden_heading3_start,
+    $.hidden_heading4_start,
+    $.hidden_heading5_start,
+    $.hidden_heading6_start,
   ],
 
   rules: {
-    source_file: $ => repeat($._node),
+    source_file: ($) =>
+      seq(
+        alias(prec.right(repeat($._block_not_section)), $.section),
+        repeat($.section),
+      ),
+    _block_not_section: ($) => $._node,
+    section: ($) =>
+      choice(
+        $._section1,
+        $._section2,
+        $._section3,
+        $._section4,
+        $._section5,
+        $._section6,
+      ),
+    _section1: ($) =>
+      prec.right(
+        seq(
+          choice($.heading1, $.hidden_heading1),
+          repeat(
+            choice(
+              alias(
+                choice(
+                  $._section6,
+                  $._section5,
+                  $._section4,
+                  $._section3,
+                  $._section2,
+                ),
+                $.section,
+              ),
+              $._block_not_section,
+            ),
+          ),
+        ),
+      ),
+    _section2: ($) =>
+      prec.right(
+        seq(
+          choice($.heading2, $.hidden_heading2),
+          repeat(
+            choice(
+              alias(
+                choice($._section6, $._section5, $._section4, $._section3),
+                $.section,
+              ),
+              $._block_not_section,
+            ),
+          ),
+        ),
+      ),
+    _section3: ($) =>
+      prec.right(
+        seq(
+          choice($.heading3, $.hidden_heading3),
+          repeat(
+            choice(
+              alias(choice($._section6, $._section5, $._section4), $.section),
+              $._block_not_section,
+            ),
+          ),
+        ),
+      ),
+    _section4: ($) =>
+      prec.right(
+        seq(
+          choice($.heading4, $.hidden_heading4),
+          repeat(
+            choice(
+              alias(choice($._section6, $._section5), $.section),
+              $._block_not_section,
+            ),
+          ),
+        ),
+      ),
+    _section5: ($) =>
+      prec.right(
+        seq(
+          choice($.heading5, $.hidden_heading5),
+          repeat(choice(alias($._section6, $.section), $._block_not_section)),
+        ),
+      ),
+    _section6: ($) => 
+      prec.right(
+        seq(
+          choice($.heading6, $.hidden_heading6),
+          repeat($._block_not_section)
+        )
+      ),
+    heading: ($) =>
+      choice(
+        $.heading1, $.heading2, $.heading3, $.heading4, $.heading5, $.heading6,
+        $.hidden_heading1, $.hidden_heading2, $.hidden_heading3, $.hidden_heading4, $.hidden_heading5, $.hidden_heading6,
+      ),
+    _heading_content: ($) => repeat1(
+      choice(
+        /[^\r\n=#]+/,
+        '#',
+        '='
+      )
+    ),
+    heading1: ($) =>
+      seq(
+        alias($.heading1_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/={1}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    heading2: ($) =>
+      seq(
+        alias($.heading2_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/={2}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    heading3: ($) =>
+      seq(
+        alias($.heading3_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/={3}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    heading4: ($) =>
+      seq(
+        alias($.heading4_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/={4}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    heading5: ($) =>
+      seq(
+        alias($.heading5_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/={5}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    heading6: ($) =>
+      seq(
+        alias($.heading6_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/={6}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    hidden_heading1: ($) =>
+      seq(
+        alias($.hidden_heading1_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/#={1}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    hidden_heading2: ($) =>
+      seq(
+        alias($.hidden_heading2_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/#={2}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    hidden_heading3: ($) =>
+      seq(
+        alias($.hidden_heading3_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/#={3}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    hidden_heading4: ($) =>
+      seq(
+        alias($.hidden_heading4_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/#={4}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    hidden_heading5: ($) =>
+      seq(
+        alias($.hidden_heading5_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/#={5}/, $.heading_marker),
+        /\r?\n/,
+      ),
+    hidden_heading6: ($) =>
+      seq(
+        alias($.hidden_heading6_start, $.heading_marker),
+        field("title", $._heading_content),
+        alias(/#={6}/, $.heading_marker),
+        /\r?\n/,
+      ),
 
     _node: $ => choice(
       $.nowiki,
@@ -128,16 +324,18 @@ module.exports = grammar({
       choice(
         seq($.nowiki_start, optional($.nowiki_content), $.bracket_end),
         /[^{}\r\n]+/,
+        token(prec(-10, '=')),
+        token(prec(-10, '#')),
         /\r?\n/,
         '{',
         token(prec(-10, '}'))
       )
     ),
 
-    // [핵심 변경] text 규칙에서 \r\n과 '}'가 결합하지 못하도록 명시적 분리
-    // '}' 문자는 가급적 External Scanner가 처리하도록 아주 낮은 우선순위(-10) 지정
     text: $ => prec(-1, choice(
-      /[^{}\r\n]+/,
+      /[^{}=#\r\n]+/,
+      token(prec(-10, '=')),
+      token(prec(-10, '#')),
       /\r?\n/,
       '{',
       token(prec(-10, '}'))

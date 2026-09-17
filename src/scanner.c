@@ -17,7 +17,19 @@ enum TokenType {
   LATEX_BLOCK_START,
   SCALE_BLOCK_START,
   COLOR_BLOCK_START,
-  BRACKET_END
+  BRACKET_END,
+  HEADING1_START,
+  HEADING2_START,
+  HEADING3_START,
+  HEADING4_START,
+  HEADING5_START,
+  HEADING6_START,
+  HIDDEN_HEADING1_START,
+  HIDDEN_HEADING2_START,
+  HIDDEN_HEADING3_START,
+  HIDDEN_HEADING4_START,
+  HIDDEN_HEADING5_START,
+  HIDDEN_HEADING6_START,
 };
 
 typedef struct {
@@ -247,6 +259,70 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
+
+  if (lexer->get_column(lexer) == 0 && lexer->lookahead == '=') {
+    uint8_t open_count = 0;
+    while (lexer->lookahead == '=' && open_count < 6) {
+      lexer->advance(lexer, false);
+      open_count++;
+    }
+
+    bool is_hidden = 0;
+    if (lexer->lookahead == '#') {
+      is_hidden = true;
+      lexer->advance(lexer, false);
+    }
+
+    uint8_t base_symbol = is_hidden ? HIDDEN_HEADING1_START : HEADING1_START;
+    uint8_t target_symbol = base_symbol + (open_count - 1);
+
+    if (open_count >= 1 && open_count <= 6 && valid_symbols[target_symbol]) {
+      if (lexer->lookahead != ' ') {
+        return false;
+      }
+
+      lexer->mark_end(lexer);
+
+      bool has_trailing_space = false;
+      bool has_closing_hash = false;
+      uint8_t trailing_equals = 0;
+      int32_t last_char = ' ';
+
+      while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
+        if (lexer->lookahead == '=') {
+          if (trailing_equals == 0) {
+            if (is_hidden) {
+              if (last_char == '#') {
+                has_closing_hash = true;
+              }
+            } else {
+              if (last_char == ' ') {
+                has_trailing_space = true;
+              }
+            }
+          }
+          trailing_equals++;
+        } else {
+          if (is_hidden && lexer->lookahead == '#' && last_char == ' ' && trailing_equals == 0) {
+            has_trailing_space = true;
+          } else {
+            has_trailing_space = false;
+            has_closing_hash = false;
+          }
+          trailing_equals = 0;
+          last_char = lexer->lookahead;
+        }
+        lexer->advance(lexer, false);
+      }
+
+      if (trailing_equals == open_count && has_trailing_space) {
+        if (!is_hidden || has_closing_hash) {
+          lexer->result_symbol = target_symbol;
+          return true;
+        }
+      }
+    }
+  }
 
   // 1. END 토큰 매칭 (}}})
   if (scanner->depth > 0) {
