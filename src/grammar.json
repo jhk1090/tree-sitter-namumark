@@ -597,23 +597,7 @@
     },
     {
       "type": "SYMBOL",
-      "name": "nowiki_end"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_nowiki_nest_open"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_nowiki_nest_close"
-    },
-    {
-      "type": "SYMBOL",
       "name": "if_block_start"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "if_block_end"
     },
     {
       "type": "SYMBOL",
@@ -621,23 +605,7 @@
     },
     {
       "type": "SYMBOL",
-      "name": "folding_block_end"
-    },
-    {
-      "type": "SYMBOL",
       "name": "syntax_block_start"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "syntax_block_end"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_syntax_block_nest_open"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_syntax_block_nest_close"
     },
     {
       "type": "SYMBOL",
@@ -645,23 +613,7 @@
     },
     {
       "type": "SYMBOL",
-      "name": "wiki_block_end"
-    },
-    {
-      "type": "SYMBOL",
       "name": "html_block_start"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "html_block_end"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_html_block_nest_open"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_html_block_nest_close"
     },
     {
       "type": "SYMBOL",
@@ -669,31 +621,7 @@
     },
     {
       "type": "SYMBOL",
-      "name": "style_block_end"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_style_block_nest_open"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_style_block_nest_close"
-    },
-    {
-      "type": "SYMBOL",
       "name": "latex_block_start"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "latex_block_end"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_latex_block_nest_open"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_latex_block_nest_close"
     },
     {
       "type": "SYMBOL",
@@ -701,15 +629,7 @@
     },
     {
       "type": "SYMBOL",
-      "name": "scale_block_end"
-    },
-    {
-      "type": "SYMBOL",
       "name": "color_block_start"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "color_block_end"
     },
     {
       "type": "SYMBOL",
