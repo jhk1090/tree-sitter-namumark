@@ -105,14 +105,14 @@ module.exports = grammar({
       $.bracket_end
     ),
 
-    wiki_block: $ => prec(1, seq(
+    wiki_block: $ => seq(
       $.wiki_block_start,
       "#!wiki",
       optional($.block_header),
       /\r?\n/,
       optional($.block_content),
       $.bracket_end
-    )),
+    ),
 
     block_header: $ => repeat1(/[^\n\s]+/),
     block_content: $ => repeat1($._node),
@@ -131,11 +131,6 @@ module.exports = grammar({
     //   $.color_block_end
     // ),
 
-    bracket_start: $ => choice(
-      $.wiki_block_start,
-      $.nowiki_start
-    ),
-
     nowiki: $ => seq(
       $.nowiki_start,
       optional(field('content', $.nowiki_content)),
@@ -144,7 +139,7 @@ module.exports = grammar({
 
     nowiki_content: $ => repeat1(
       choice(
-        seq($.bracket_start, optional($.nowiki_content), $.bracket_end),
+        seq($.nowiki_start, optional($.nowiki_content), $.bracket_end),
         /[^{}\r\n]+/,
         /\r?\n/,
         '{',

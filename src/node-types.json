@@ -52,25 +52,6 @@
     "fields": {}
   },
   {
-    "type": "bracket_start",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "nowiki_start",
-          "named": true
-        },
-        {
-          "type": "wiki_block_start",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "folding_block",
     "named": true,
     "fields": {},
@@ -227,11 +208,11 @@
           "named": true
         },
         {
-          "type": "bracket_start",
+          "type": "nowiki_content",
           "named": true
         },
         {
-          "type": "nowiki_content",
+          "type": "nowiki_start",
           "named": true
         }
       ]

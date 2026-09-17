@@ -289,53 +289,49 @@
       ]
     },
     "wiki_block": {
-      "type": "PREC",
-      "value": 1,
-      "content": {
-        "type": "SEQ",
-        "members": [
-          {
-            "type": "SYMBOL",
-            "name": "wiki_block_start"
-          },
-          {
-            "type": "STRING",
-            "value": "#!wiki"
-          },
-          {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "block_header"
-              },
-              {
-                "type": "BLANK"
-              }
-            ]
-          },
-          {
-            "type": "PATTERN",
-            "value": "\\r?\\n"
-          },
-          {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "block_content"
-              },
-              {
-                "type": "BLANK"
-              }
-            ]
-          },
-          {
-            "type": "SYMBOL",
-            "name": "bracket_end"
-          }
-        ]
-      }
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "wiki_block_start"
+        },
+        {
+          "type": "STRING",
+          "value": "#!wiki"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "block_header"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "PATTERN",
+          "value": "\\r?\\n"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "block_content"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "bracket_end"
+        }
+      ]
     },
     "block_header": {
       "type": "REPEAT1",
@@ -350,19 +346,6 @@
         "type": "SYMBOL",
         "name": "_node"
       }
-    },
-    "bracket_start": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "wiki_block_start"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "nowiki_start"
-        }
-      ]
     },
     "nowiki": {
       "type": "SEQ",
@@ -403,7 +386,7 @@
             "members": [
               {
                 "type": "SYMBOL",
-                "name": "bracket_start"
+                "name": "nowiki_start"
               },
               {
                 "type": "CHOICE",
