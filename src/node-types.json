@@ -8,6 +8,10 @@
       "required": true,
       "types": [
         {
+          "type": "color_block",
+          "named": true
+        },
+        {
           "type": "folding_block",
           "named": true
         },
@@ -25,6 +29,10 @@
         },
         {
           "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "scale_block",
           "named": true
         },
         {
@@ -50,6 +58,50 @@
     "type": "block_header",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "color_block",
+    "named": true,
+    "fields": {
+      "color1": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "color_color",
+            "named": true
+          }
+        ]
+      },
+      "color2": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "color_color",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_content",
+          "named": true
+        },
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "color_block_start",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "folding_block",
@@ -219,6 +271,33 @@
     }
   },
   {
+    "type": "scale_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_content",
+          "named": true
+        },
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "scale_block_start",
+          "named": true
+        },
+        {
+          "type": "scale_size",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "source_file",
     "named": true,
     "root": true,
@@ -227,6 +306,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "color_block",
+          "named": true
+        },
         {
           "type": "folding_block",
           "named": true
@@ -245,6 +328,10 @@
         },
         {
           "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "scale_block",
           "named": true
         },
         {
@@ -391,7 +478,19 @@
     "named": false
   },
   {
+    "type": ",",
+    "named": false
+  },
+  {
     "type": "bracket_end",
+    "named": true
+  },
+  {
+    "type": "color_block_start",
+    "named": true
+  },
+  {
+    "type": "color_color",
     "named": true
   },
   {
@@ -412,6 +511,14 @@
   },
   {
     "type": "nowiki_start",
+    "named": true
+  },
+  {
+    "type": "scale_block_start",
+    "named": true
+  },
+  {
+    "type": "scale_size",
     "named": true
   },
   {

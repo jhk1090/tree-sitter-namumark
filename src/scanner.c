@@ -82,88 +82,6 @@ static bool consume_newline(TSLexer *lexer) {
   return true;
 }
 
-static bool is_hex_digit(char c) {
-  return (c >= '0' && c <= '9') ||
-         (c >= 'a' && c <= 'f') ||
-         (c >= 'A' && c <= 'F');
-}
-
-// `#` 다음 오는 단일 색상 본문 검사
-static bool consume_single_color(TSLexer *lexer) {
-  char buf[32];
-  int len = 0;
-  bool all_hex = true;
-
-  while (isalnum((unsigned char)lexer->lookahead) && len < 31) {
-    char c = (char)lexer->lookahead;
-    if (!is_hex_digit(c)) {
-      all_hex = false;
-    }
-    buf[len++] = (char)tolower((unsigned char)c);
-    lexer->advance(lexer, false);
-  }
-  buf[len] = '\0';
-
-  if (len == 0) return false;
-
-  // 1. 모든 문자가 Hex이고 길이가 3 또는 6인 경우 Valid Hex
-  if (all_hex && (len == 3 || len == 6)) {
-    return true;
-  }
-
-  // 2. Named Color 목록 매칭
-  static const char *const VALID_COLORS[] = {
-    "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure",
-    "beige", "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood",
-    "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan",
-    "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgreen", "darkgrey", "darkkhaki",
-    "darkmagenta", "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon",
-    "darkseagreen", "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise", "darkviolet",
-    "deeppink", "deepskyblue", "dimgray", "dimgrey", "dodgerblue",
-    "firebrick", "floralwhite", "forestgreen", "fuchsia",
-    "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "green", "greenyellow", "grey",
-    "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki",
-    "lavender", "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral",
-    "lightcyan", "lightgoldenrodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink",
-    "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray", "lightslategrey",
-    "lightsteelblue", "lightyellow", "lime", "limegreen", "linen",
-    "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple",
-    "mediumseagreen", "mediumslateblue", "mediumspringgreen", "mediumturquoise",
-    "mediumvioletred", "midnightblue", "mintcream", "mistyrose", "moccasin",
-    "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange", "orangered", "orchid",
-    "palegoldenrod", "palegreen", "paleturquoise", "palevioletred", "papayawhip", "peachpuff",
-    "peru", "pink", "plum", "powderblue", "purple",
-    "red", "rosybrown", "royalblue",
-    "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver",
-    "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue",
-    "tan", "teal", "thistle", "tomato", "transparent", "turquoise",
-    "violet", "wheat", "white", "whitesmoke", "yellow", "yellowgreen"
-  };
-
-  int count = sizeof(VALID_COLORS) / sizeof(VALID_COLORS[0]);
-  for (int i = 0; i < count; i++) {
-    if (strcmp(buf, VALID_COLORS[i]) == 0) return true;
-  }
-
-  return false;
-}
-
-// 색상 전체 표현식 검사
-static bool consume_color_token(TSLexer *lexer) {
-  // 1. 첫 번째 색상 검사
-  if (!consume_single_color(lexer)) return false;
-
-  // 2. 다크모드 대응
-  if (lexer->lookahead == ',') {
-    lexer->advance(lexer, false);
-    if (lexer->lookahead != '#') return false;
-    lexer->advance(lexer, false);
-    if (!consume_single_color(lexer)) return false;
-  }
-
-  return true;
-}
-
 // llm이 추천한 방식으로 변경
 static bool consume_language(TSLexer *lexer) {
   char buf[32] = {0};
@@ -243,6 +161,93 @@ static uint8_t consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
 
   return SYNTAX_BLOCK_START;
 }
+
+static uint8_t consume_scale_block(TSLexer *lexer, Scanner *scanner) {
+  if (lexer->lookahead != '+' && lexer->lookahead != '-') {
+    return NOWIKI_START;
+  }
+
+  lexer->advance(lexer, false);
+
+  if (!(lexer->lookahead >= '1' && lexer->lookahead <= '5')) {
+    return NOWIKI_START;
+  }
+
+  lexer->advance(lexer, false);
+  
+  if (!consume_newline(lexer)) {
+    if (lexer->lookahead != ' ') {
+      return NOWIKI_START;
+    }
+    lexer->advance(lexer, false);
+  }
+
+  return SCALE_BLOCK_START;
+}
+
+static bool is_hex_digit(char c) {
+  return (c >= '0' && c <= '9') ||
+         (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F');
+}
+
+// `#` 다음 오는 단일 색상 본문 검사
+static bool consume_single_color(TSLexer *lexer) {
+  char buf[32];
+  int len = 0;
+  bool all_hex = true;
+
+  while (isalnum((unsigned char)lexer->lookahead) && len < 31) {
+    char c = (char)lexer->lookahead;
+    if (!is_hex_digit(c)) {
+      all_hex = false;
+    }
+    buf[len++] = (char)tolower((unsigned char)c);
+    lexer->advance(lexer, false);
+  }
+  buf[len] = '\0';
+
+  if (len == 0) return false;
+
+  // 1. 모든 문자가 Hex이고 길이가 3 또는 6인 경우 Valid Hex
+  if (all_hex && (len == 3 || len == 6)) {
+    return true;
+  }
+
+  // 2. Named Color 목록 매칭
+  static const char *const VALID_COLORS[] = {"aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgrey", "darkgreen", "darkkhaki", "darkmagenta", "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink", "deepskyblue", "dimgray", "dimgrey", "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "grey", "green", "greenyellow", "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow", "lightgray", "lightgrey", "lightgreen", "lightpink", "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray", "lightslategrey", "lightsteelblue", "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue", "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream", "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange", "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple", "rebeccapurple", "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue", "tan", "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke", "yellow", "yellowgreen"};
+
+  int count = sizeof(VALID_COLORS) / sizeof(VALID_COLORS[0]);
+  for (int i = 0; i < count; i++) {
+    if (strcmp(buf, VALID_COLORS[i]) == 0) return true;
+  }
+
+  return false;
+}
+
+static uint8_t consume_color_block(TSLexer *lexer, Scanner *scanner) {
+  if (!consume_single_color(lexer)) return NOWIKI_START;
+
+  if (lexer->lookahead == ',') {
+    lexer->advance(lexer, false);
+    if (lexer->lookahead != '#') {
+      return NOWIKI_START;
+    }
+    lexer->advance(lexer, false);
+    if (!consume_single_color(lexer)) return NOWIKI_START;
+  }
+  
+  if (!consume_newline(lexer)) {
+    if (lexer->lookahead != ' ') {
+      return NOWIKI_START;
+    }
+    lexer->advance(lexer, false);
+  }
+
+  return COLOR_BLOCK_START;
+}
+
+
 // --- Lifecycle 함수들 ---
 
 void *tree_sitter_namumark_external_scanner_create() {
@@ -339,23 +344,15 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           }
         } 
         // 2-2. '#!'가 아니고 바로 색상명이 시작하는 케이스 (COLOR_BLOCK_START)
-        // else if (valid_symbols[COLOR_BLOCK_START]) {
-        //   if (consume_color_token(lexer)) {
-        //     return match_token(lexer, scanner, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
-        //   }
-        // }
+        else if (valid_symbols[COLOR_BLOCK_START]) {
+          return register_token(lexer, scanner, consume_color_block(lexer, scanner));
+        }
       }
 
       // 글자 크기 블록 ({{{+1 ...}}}, {{{-2 ...}}})
-      // if (lexer->lookahead == '+' || lexer->lookahead == '-') {
-      //   if (valid_symbols[SCALE_BLOCK_START]) {
-      //     lexer->advance(lexer, false);
-      //     if (lexer->lookahead >= '1' && lexer->lookahead <= '5') {
-      //       lexer->advance(lexer, false);
-      //       return match_token(lexer, scanner, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
-      //     }
-      //   }
-      // }
+      if (valid_symbols[SCALE_BLOCK_START]) {
+        return register_token(lexer, scanner, consume_scale_block(lexer, scanner));
+      }
 
       // 4. Default Fallback -> NOWIKI
       if (valid_symbols[NOWIKI_START]) {

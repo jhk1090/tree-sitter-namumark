@@ -50,8 +50,8 @@ module.exports = grammar({
       $.html_block,
       $.style_block,
       $.latex_block,
-      // $.scale_block,
-      // $.color_block,
+      $.scale_block,
+      $.color_block,
       $.text,
     ),
 
@@ -117,19 +117,26 @@ module.exports = grammar({
     block_header: $ => repeat1(/[^\n\s]+/),
     block_content: $ => repeat1($._node),
 
-    // scale_block: $ => seq(
-    //   $.scale_block_start,
-    //   /\r?\n| /,
-    //   optional(repeat1($._node)),
-    //   $.scale_block_end
-    // ),
+    scale_block: $ => seq(
+      $.scale_block_start,
+      $.scale_size,
+      /\r?\n| /,
+      optional($.block_content),
+      $.bracket_end
+    ),
+    scale_size: $ => token(/[+-][1-5]/),
 
-    // color_block: $ => seq(
-    //   $.color_block_start,
-    //   /\r?\n| /,
-    //   optional(repeat1($._node)),
-    //   $.color_block_end
-    // ),
+    color_block: $ => seq(
+      $.color_block_start,
+      field('color1', $.color_color),
+      optional(
+        seq(",", field('color2', $.color_color))
+      ),
+      /\r?\n| /,
+      optional($.block_content),
+      $.bracket_end
+    ),
+    color_color: $ => token(/[^\n\s,]+/),
 
     nowiki: $ => seq(
       $.nowiki_start,

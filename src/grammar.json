@@ -46,6 +46,14 @@
         },
         {
           "type": "SYMBOL",
+          "name": "scale_block"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "color_block"
+        },
+        {
+          "type": "SYMBOL",
           "name": "text"
         }
       ]
@@ -345,6 +353,115 @@
       "content": {
         "type": "SYMBOL",
         "name": "_node"
+      }
+    },
+    "scale_block": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "scale_block_start"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "scale_size"
+        },
+        {
+          "type": "PATTERN",
+          "value": "\\r?\\n| "
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "block_content"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "bracket_end"
+        }
+      ]
+    },
+    "scale_size": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PATTERN",
+        "value": "[+-][1-5]"
+      }
+    },
+    "color_block": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "color_block_start"
+        },
+        {
+          "type": "FIELD",
+          "name": "color1",
+          "content": {
+            "type": "SYMBOL",
+            "name": "color_color"
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": ","
+                },
+                {
+                  "type": "FIELD",
+                  "name": "color2",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "color_color"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "PATTERN",
+          "value": "\\r?\\n| "
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "block_content"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "bracket_end"
+        }
+      ]
+    },
+    "color_color": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PATTERN",
+        "value": "[^\\n\\s,]+"
       }
     },
     "nowiki": {
