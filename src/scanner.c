@@ -166,83 +166,36 @@ static bool consume_color_token(TSLexer *lexer) {
 
 // llm이 추천한 방식으로 변경
 static bool consume_language(TSLexer *lexer) {
-  switch (lexer->lookahead) {
-    case 'c':
-      lexer->advance(lexer, false);
-      if (lexer->lookahead == 'p') {
-        lexer->advance(lexer, false);
-        if (lexer->lookahead == 'p') {
-          lexer->advance(lexer, false);
-          return true;
-        }
-      } else if (lexer->lookahead == 's') {
-        lexer->advance(lexer, false);
-        if (lexer->lookahead == 's') {
-          lexer->advance(lexer, false);
-          return true;
-        }
-        if (consume_string(lexer, "harp")) return true;
-      }
-      return false;
+  char buf[32] = {0};
+  size_t len = 0;
 
-    case 'j':
-      lexer->advance(lexer, false);
-      if (consume_string(lexer, "ava")) {
-        consume_string(lexer, "script");
-        return true;
-      }
-      if (consume_string(lexer, "son")) return true;
-      return false;
-
-    case 'l':
-      lexer->advance(lexer, false);
-      if (consume_string(lexer, "isp")) return true;
-      if (consume_string(lexer, "ua")) return true; 
-      return false;
-
-    case 'p':
-      lexer->advance(lexer, false);
-      if (consume_string(lexer, "erl")) return true;
-      if (consume_string(lexer, "hp")) return true;
-      if (consume_string(lexer, "owershell")) return true;
-      if (consume_string(lexer, "ython")) return true;
-      return false;
-
-    case 'r':
-      lexer->advance(lexer, false);
-      if (consume_string(lexer, "uby")) return true;
-      if (consume_string(lexer, "ust")) return true;
-      return false;
-
-    case 's':
-      lexer->advance(lexer, false);
-      if (lexer->lookahead == 'h') {
-        lexer->advance(lexer, false);
-        return true;
-      }
-      if (lexer->lookahead == 'q') {
-        lexer->advance(lexer, false);
-        if (lexer->lookahead == 'l') {
-          lexer->advance(lexer, false);
-          return true;
-        }
-      }
-      if (consume_string(lexer, "wift")) return true;
-      return false;
-
-    case 'b': return consume_string(lexer, "basic");
-    case 'e': return consume_string(lexer, "erlang");
-    case 'g': return consume_string(lexer, "go");
-    case 'h': return consume_string(lexer, "html");
-    case 'k': return consume_string(lexer, "kotlin");
-    case 'm': return consume_string(lexer, "markdown");
-    case 'o': return consume_string(lexer, "objectivec");
-    case 't': return consume_string(lexer, "typescript");
-    case 'x': return consume_string(lexer, "xml");
-
-    default:
-      return false;
+  while (isalnum(lexer->lookahead)) {
+    if (len < 31) {
+      buf[len++] = (char)lexer->lookahead;
+    }
+    lexer->advance(lexer, false);
   }
+  buf[len] = '\0';
+
+  if (len == 0) return false;
+
+  static const char *const ALLOWED_LANGUAGES[] = {
+    "javascript", "basic", "cpp", "csharp", "css", "erlang", "go", "html",
+    "java", "json", "kotlin", "lisp", "lua", "markdown", "objectivec",
+    "perl", "php", "powershell", "python", "ruby", "rust",
+    "sh", "sql", "swift", "typescript", "xml"
+  };
+  static const size_t LANG_COUNT = sizeof(ALLOWED_LANGUAGES) / sizeof(ALLOWED_LANGUAGES[0]);
+
+  bool is_valid = false;
+  for (size_t i = 0; i < LANG_COUNT; i++) {
+    if (strcmp(buf, ALLOWED_LANGUAGES[i]) == 0) {
+      is_valid = true;
+      break;
+    }
+  }
+
+  return is_valid;
 }
 
 static bool register_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
@@ -254,7 +207,7 @@ static bool register_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE)
   return true;
 }
 
-static bool match_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
+static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
   uint8_t token = TOKEN_TYPE;
   if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
     if (lexer->lookahead != ' ') {
@@ -354,10 +307,10 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           lexer->advance(lexer, false); // '!' 소비
 
           if (valid_symbols[IF_BLOCK_START] && consume_string(lexer, "if")) {
-            return match_token(lexer, scanner, IF_BLOCK_START);
+            return consume_depth_block(lexer, scanner, IF_BLOCK_START);
           }
           if (valid_symbols[FOLDING_BLOCK_START] && consume_string(lexer, "folding")) {
-            return match_token(lexer, scanner, FOLDING_BLOCK_START);
+            return consume_depth_block(lexer, scanner, FOLDING_BLOCK_START);
           }
           if (consume_string(lexer, "s")) {
             if (valid_symbols[SYNTAX_BLOCK_START] && consume_string(lexer, "yntax")) {
@@ -372,7 +325,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
             }
           }
           if (valid_symbols[WIKI_BLOCK_START] && consume_string(lexer, "wiki")) {
-            return match_token(lexer, scanner, WIKI_BLOCK_START);
+            return consume_depth_block(lexer, scanner, WIKI_BLOCK_START);
           }
           if (valid_symbols[HTML_BLOCK_START] && consume_string(lexer, "html")) {
             return register_token(lexer, scanner, HTML_BLOCK_START);
