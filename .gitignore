@@ -1,3 +1,6 @@
 node_modules/
 
 test.namu
+src/parser.c
+src/node-types.json
+src/grammar.json
