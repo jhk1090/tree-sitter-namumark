@@ -12,11 +12,27 @@
           "named": true
         },
         {
+          "type": "html_block",
+          "named": true
+        },
+        {
           "type": "if_block",
           "named": true
         },
         {
+          "type": "latex_block",
+          "named": true
+        },
+        {
           "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "style_block",
+          "named": true
+        },
+        {
+          "type": "syntax_block",
           "named": true
         },
         {
@@ -82,6 +98,36 @@
     }
   },
   {
+    "type": "html_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "nowiki_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "html_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "if_block",
     "named": true,
     "fields": {},
@@ -103,6 +149,36 @@
         },
         {
           "type": "if_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "latex_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "nowiki_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "latex_block_start",
           "named": true
         }
       ]
@@ -175,11 +251,27 @@
           "named": true
         },
         {
+          "type": "html_block",
+          "named": true
+        },
+        {
           "type": "if_block",
           "named": true
         },
         {
+          "type": "latex_block",
+          "named": true
+        },
+        {
           "type": "nowiki",
+          "named": true
+        },
+        {
+          "type": "style_block",
+          "named": true
+        },
+        {
+          "type": "syntax_block",
           "named": true
         },
         {
@@ -188,6 +280,70 @@
         },
         {
           "type": "wiki_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "style_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "nowiki_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "style_block_start",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "syntax_block",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "nowiki_content",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_header",
+          "named": true
+        },
+        {
+          "type": "bracket_end",
+          "named": true
+        },
+        {
+          "type": "syntax_block_start",
           "named": true
         }
       ]
@@ -230,7 +386,23 @@
     "named": false
   },
   {
+    "type": "#!html",
+    "named": false
+  },
+  {
     "type": "#!if",
+    "named": false
+  },
+  {
+    "type": "#!latex",
+    "named": false
+  },
+  {
+    "type": "#!style",
+    "named": false
+  },
+  {
+    "type": "#!syntax",
     "named": false
   },
   {
@@ -246,11 +418,27 @@
     "named": true
   },
   {
+    "type": "html_block_start",
+    "named": true
+  },
+  {
     "type": "if_block_start",
     "named": true
   },
   {
+    "type": "latex_block_start",
+    "named": true
+  },
+  {
     "type": "nowiki_start",
+    "named": true
+  },
+  {
+    "type": "style_block_start",
+    "named": true
+  },
+  {
+    "type": "syntax_block_start",
     "named": true
   },
   {

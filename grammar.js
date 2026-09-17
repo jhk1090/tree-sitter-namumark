@@ -45,11 +45,11 @@ module.exports = grammar({
       $.nowiki,
       $.if_block,
       $.folding_block,
-      // $.syntax_block,
+      $.syntax_block,
       $.wiki_block,
-      // $.html_block,
-      // $.style_block,
-      // $.latex_block,
+      $.html_block,
+      $.style_block,
+      $.latex_block,
       // $.scale_block,
       // $.color_block,
       $.text,
@@ -73,73 +73,37 @@ module.exports = grammar({
       $.bracket_end
     ),
 
-    // syntax_block: $ => seq(
-    //   $.syntax_block_start,
-    //   optional(field('content', $.syntax_block_content)),
-    //   $.syntax_block_end
-    // ),
+    syntax_block: $ => seq(
+      $.syntax_block_start,
+      "#!syntax",
+      $.block_header,
+      /\r?\n/,
+      optional(field('content', $.nowiki_content)),
+      $.bracket_end
+    ),
 
-    // syntax_block_content: $ => repeat1(
-    //   choice(
-    //     $._syntax_block_nest_open,
-    //     $._syntax_block_nest_close,
-    //     /[^{}\r\n]+/,
-    //     /\r?\n/,
-    //     '{',
-    //     token(prec(-10, '}'))
-    //   )
-    // ),
+    html_block: $ => seq(
+      $.html_block_start,
+      "#!html",
+      optional(field('content', $.nowiki_content)),
+      $.bracket_end
+    ),
 
-    // html_block: $ => seq(
-    //   $.html_block_start,
-    //   optional(field('content', $.html_block_content)),
-    //   $.html_block_end
-    // ),
+    style_block: $ => seq(
+      $.style_block_start,
+      "#!style",
+      /\r?\n/,
+      optional(field('content', $.nowiki_content)),
+      $.bracket_end
+    ),
 
-    // html_block_content: $ => repeat1(
-    //   choice(
-    //     $._html_block_nest_open,
-    //     $._html_block_nest_close,
-    //     /[^{}\r\n]+/,
-    //     /\r?\n/,
-    //     '{',
-    //     token(prec(-10, '}'))
-    //   )
-    // ),
-
-    // style_block: $ => seq(
-    //   $.style_block_start,
-    //   optional(field('content', $.style_block_content)),
-    //   $.style_block_end
-    // ),
-
-    // style_block_content: $ => repeat1(
-    //   choice(
-    //     $._style_block_nest_open,
-    //     $._style_block_nest_close,
-    //     /[^{}\r\n]+/,
-    //     /\r?\n/,
-    //     '{',
-    //     token(prec(-10, '}'))
-    //   )
-    // ),
-
-    // latex_block: $ => seq(
-    //   $.latex_block_start,
-    //   optional(field('content', $.latex_block_content)),
-    //   $.latex_block_end
-    // ),
-
-    // latex_block_content: $ => repeat1(
-    //   choice(
-    //     $._latex_block_nest_open,
-    //     $._latex_block_nest_close,
-    //     /[^{}\r\n]+/,
-    //     /\r?\n/,
-    //     '{',
-    //     token(prec(-10, '}'))
-    //   )
-    // ),
+    latex_block: $ => seq(
+      $.latex_block_start,
+      "#!latex",
+      /\r?\n/,
+      optional(field('content', $.nowiki_content)),
+      $.bracket_end
+    ),
 
     wiki_block: $ => prec(1, seq(
       $.wiki_block_start,
@@ -165,16 +129,6 @@ module.exports = grammar({
     //   /\r?\n| /,
     //   optional(repeat1($._node)),
     //   $.color_block_end
-    // ),
-
-    // attribute: $ => seq(
-    //   field('key', /[a-zA-Z_][a-zA-Z0-9_-]*/),
-    //   '=',
-    //   field('value', choice(
-    //     /\"[^\"]*\"/,
-    //     /\'[^\']*\'/,
-    //     /[^\s"'>]+/
-    //   ))
     // ),
 
     bracket_start: $ => choice(

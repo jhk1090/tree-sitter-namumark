@@ -244,31 +244,13 @@ static bool consume_language(TSLexer *lexer) {
   }
 }
 
-static bool has_matching_closing_brace(TSLexer *lexer) {
-  int current_depth = 1;
-
-  while (!lexer->eof(lexer)) {
-    if (lexer->lookahead == '}') {
-      if (consume_string(lexer, "}}}")) {
-        current_depth--;
-        if (current_depth == 0) return true;
-        continue;
-      }
-      lexer->advance(lexer, false);
-    } 
-    else if (lexer->lookahead == '{') {
-      if (consume_string(lexer, "{{{")) {
-        current_depth++;
-        continue;
-      }
-      lexer->advance(lexer, false);
-    } 
-    else {
-      lexer->advance(lexer, false);
-    }
+static bool register_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
+  if (scanner->depth < 256) {
+    scanner->depth++;
   }
 
-  return false;
+  lexer->result_symbol = TOKEN_TYPE;
+  return true;
 }
 
 static bool match_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
@@ -287,14 +269,26 @@ static bool match_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
     token = NOWIKI_START;
   }
 
-  if (scanner->depth < 256) {
-    scanner->depth++;
-  }
-
-  lexer->result_symbol = token;
-  return true;
+  return register_token(lexer, scanner, token);
 }
 
+static uint8_t consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
+  if (lexer->lookahead != ' ') {
+    return NOWIKI_START;
+  }
+
+  lexer->advance(lexer, false);
+
+  if (!consume_language(lexer)) {
+    return NOWIKI_START;
+  }
+  
+  if (!consume_newline(lexer)) {
+    return NOWIKI_START;
+  }
+
+  return SYNTAX_BLOCK_START;
+}
 // --- Lifecycle 함수들 ---
 
 void *tree_sitter_namumark_external_scanner_create() {
@@ -390,28 +384,31 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           if (valid_symbols[FOLDING_BLOCK_START] && consume_string(lexer, "folding")) {
             return match_token(lexer, scanner, FOLDING_BLOCK_START);
           }
-          // if (consume_string(lexer, "s")) {
-          //   if (consume_string(lexer, "yntax")) {
-          //     if (lexer->lookahead == ' ') {
-          //       lexer->advance(lexer, false);
-          //       if (consume_language(lexer) && valid_symbols[SYNTAX_BLOCK_START]) {
-          //         return match_token(lexer, scanner, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
-          //       }
-          //     }
-          //   }
-          //   if (consume_string(lexer, "tyle") && consume_newline(lexer) && valid_symbols[STYLE_BLOCK_START]) {
-          //     return match_token(lexer, scanner, STYLE_BLOCK_START, BLOCK_TYPE_STYLE);
-          //   }
-          // }
+          if (consume_string(lexer, "s")) {
+            if (valid_symbols[SYNTAX_BLOCK_START] && consume_string(lexer, "yntax")) {
+              return register_token(lexer, scanner, consume_syntax_block(lexer, scanner));
+            }
+            if (valid_symbols[STYLE_BLOCK_START] && consume_string(lexer, "tyle")) {
+              uint8_t token = STYLE_BLOCK_START;
+              if (!consume_newline(lexer)) {
+                token = NOWIKI_START;
+              }
+              return register_token(lexer, scanner, token);
+            }
+          }
           if (valid_symbols[WIKI_BLOCK_START] && consume_string(lexer, "wiki")) {
             return match_token(lexer, scanner, WIKI_BLOCK_START);
           }
-          // if (consume_string(lexer, "html") && valid_symbols[HTML_BLOCK_START]) {
-          //   return match_token(lexer, scanner, HTML_BLOCK_START, BLOCK_TYPE_HTML);
-          // }
-          // if (consume_string(lexer, "latex") && consume_newline(lexer) && valid_symbols[LATEX_BLOCK_START]) {
-          //   return match_token(lexer, scanner, LATEX_BLOCK_START, BLOCK_TYPE_LATEX);
-          // }
+          if (valid_symbols[HTML_BLOCK_START] && consume_string(lexer, "html")) {
+            return register_token(lexer, scanner, HTML_BLOCK_START);
+          }
+          if (valid_symbols[LATEX_BLOCK_START] && consume_string(lexer, "latex")) {
+            uint8_t token = LATEX_BLOCK_START;
+            if (!consume_newline(lexer)) {
+              token = NOWIKI_START;
+            }
+            return register_token(lexer, scanner, token);
+          }
         } 
         // 2-2. '#!'가 아니고 바로 색상명이 시작하는 케이스 (COLOR_BLOCK_START)
         // else if (valid_symbols[COLOR_BLOCK_START]) {
@@ -432,30 +429,9 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       //   }
       // }
 
-      // 3. NEST 중첩 처리
-      // if (top_type == BLOCK_TYPE_NOWIKI && valid_symbols[NOWIKI_NEST_OPEN]) {
-      //   return match_token(lexer, scanner, NOWIKI_NEST_OPEN, BLOCK_TYPE_NOWIKI_NEST);
-      // }
-      // if (top_type == BLOCK_TYPE_SYNTAX && valid_symbols[SYNTAX_BLOCK_NEST_OPEN]) {
-      //   return match_token(lexer, scanner, SYNTAX_BLOCK_NEST_OPEN, BLOCK_TYPE_SYNTAX_NEST);
-      // }
-      // if (top_type == BLOCK_TYPE_HTML && valid_symbols[HTML_BLOCK_NEST_OPEN]) {
-      //   return match_token(lexer, scanner, HTML_BLOCK_NEST_OPEN, BLOCK_TYPE_HTML_NEST);
-      // }
-      // if (top_type == BLOCK_TYPE_STYLE && valid_symbols[STYLE_BLOCK_NEST_OPEN]) {
-      //   return match_token(lexer, scanner, STYLE_BLOCK_NEST_OPEN, BLOCK_TYPE_STYLE_NEST);
-      // }
-      // if (top_type == BLOCK_TYPE_LATEX && valid_symbols[LATEX_BLOCK_NEST_OPEN]) {
-      //   return match_token(lexer, scanner, LATEX_BLOCK_NEST_OPEN, BLOCK_TYPE_LATEX_NEST);
-      // }
-
       // 4. Default Fallback -> NOWIKI
       if (valid_symbols[NOWIKI_START]) {
-        if (scanner->depth < 256) {
-          scanner->depth++;
-        }
-        lexer->result_symbol = NOWIKI_START;
-        return true;
+        return register_token(lexer, scanner, NOWIKI_START);
       }
     }
   }
