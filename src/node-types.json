@@ -1,6 +1,6 @@
 [
   {
-    "type": "color_block",
+    "type": "block_content",
     "named": true,
     "fields": {},
     "children": {
@@ -8,47 +8,7 @@
       "required": true,
       "types": [
         {
-          "type": "color_block",
-          "named": true
-        },
-        {
-          "type": "color_block_end",
-          "named": true
-        },
-        {
-          "type": "color_block_start",
-          "named": true
-        },
-        {
-          "type": "folding_block",
-          "named": true
-        },
-        {
-          "type": "html_block",
-          "named": true
-        },
-        {
-          "type": "if_block",
-          "named": true
-        },
-        {
-          "type": "latex_block",
-          "named": true
-        },
-        {
           "type": "nowiki",
-          "named": true
-        },
-        {
-          "type": "scale_block",
-          "named": true
-        },
-        {
-          "type": "style_block",
-          "named": true
-        },
-        {
-          "type": "syntax_block",
           "named": true
         },
         {
@@ -63,218 +23,23 @@
     }
   },
   {
-    "type": "folding_block",
+    "type": "bracket_start",
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": true,
       "types": [
         {
-          "type": "color_block",
+          "type": "nowiki_start",
           "named": true
         },
         {
-          "type": "folding_block",
-          "named": true
-        },
-        {
-          "type": "folding_block_end",
-          "named": true
-        },
-        {
-          "type": "folding_block_header",
-          "named": true
-        },
-        {
-          "type": "folding_block_start",
-          "named": true
-        },
-        {
-          "type": "html_block",
-          "named": true
-        },
-        {
-          "type": "if_block",
-          "named": true
-        },
-        {
-          "type": "latex_block",
-          "named": true
-        },
-        {
-          "type": "nowiki",
-          "named": true
-        },
-        {
-          "type": "scale_block",
-          "named": true
-        },
-        {
-          "type": "style_block",
-          "named": true
-        },
-        {
-          "type": "syntax_block",
-          "named": true
-        },
-        {
-          "type": "text",
-          "named": true
-        },
-        {
-          "type": "wiki_block",
+          "type": "wiki_block_start",
           "named": true
         }
       ]
     }
-  },
-  {
-    "type": "folding_block_header",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "html_block",
-    "named": true,
-    "fields": {
-      "content": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "html_block_content",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "html_block_end",
-          "named": true
-        },
-        {
-          "type": "html_block_start",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "html_block_content",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "if_block",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "color_block",
-          "named": true
-        },
-        {
-          "type": "folding_block",
-          "named": true
-        },
-        {
-          "type": "html_block",
-          "named": true
-        },
-        {
-          "type": "if_block",
-          "named": true
-        },
-        {
-          "type": "if_block_end",
-          "named": true
-        },
-        {
-          "type": "if_block_header",
-          "named": true
-        },
-        {
-          "type": "if_block_start",
-          "named": true
-        },
-        {
-          "type": "latex_block",
-          "named": true
-        },
-        {
-          "type": "nowiki",
-          "named": true
-        },
-        {
-          "type": "scale_block",
-          "named": true
-        },
-        {
-          "type": "style_block",
-          "named": true
-        },
-        {
-          "type": "syntax_block",
-          "named": true
-        },
-        {
-          "type": "text",
-          "named": true
-        },
-        {
-          "type": "wiki_block",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "if_block_header",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "latex_block",
-    "named": true,
-    "fields": {
-      "content": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "latex_block_content",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "latex_block_end",
-          "named": true
-        },
-        {
-          "type": "latex_block_start",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "latex_block_content",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "nowiki",
@@ -296,7 +61,7 @@
       "required": true,
       "types": [
         {
-          "type": "nowiki_end",
+          "type": "bracket_end",
           "named": true
         },
         {
@@ -309,66 +74,21 @@
   {
     "type": "nowiki_content",
     "named": true,
-    "fields": {}
-  },
-  {
-    "type": "scale_block",
-    "named": true,
     "fields": {},
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
         {
-          "type": "color_block",
+          "type": "bracket_end",
           "named": true
         },
         {
-          "type": "folding_block",
+          "type": "bracket_start",
           "named": true
         },
         {
-          "type": "html_block",
-          "named": true
-        },
-        {
-          "type": "if_block",
-          "named": true
-        },
-        {
-          "type": "latex_block",
-          "named": true
-        },
-        {
-          "type": "nowiki",
-          "named": true
-        },
-        {
-          "type": "scale_block",
-          "named": true
-        },
-        {
-          "type": "scale_block_end",
-          "named": true
-        },
-        {
-          "type": "scale_block_start",
-          "named": true
-        },
-        {
-          "type": "style_block",
-          "named": true
-        },
-        {
-          "type": "syntax_block",
-          "named": true
-        },
-        {
-          "type": "text",
-          "named": true
-        },
-        {
-          "type": "wiki_block",
+          "type": "nowiki_content",
           "named": true
         }
       ]
@@ -384,39 +104,7 @@
       "required": false,
       "types": [
         {
-          "type": "color_block",
-          "named": true
-        },
-        {
-          "type": "folding_block",
-          "named": true
-        },
-        {
-          "type": "html_block",
-          "named": true
-        },
-        {
-          "type": "if_block",
-          "named": true
-        },
-        {
-          "type": "latex_block",
-          "named": true
-        },
-        {
           "type": "nowiki",
-          "named": true
-        },
-        {
-          "type": "scale_block",
-          "named": true
-        },
-        {
-          "type": "style_block",
-          "named": true
-        },
-        {
-          "type": "syntax_block",
           "named": true
         },
         {
@@ -429,76 +117,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "style_block",
-    "named": true,
-    "fields": {
-      "content": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "style_block_content",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "style_block_end",
-          "named": true
-        },
-        {
-          "type": "style_block_start",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "style_block_content",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "syntax_block",
-    "named": true,
-    "fields": {
-      "content": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "syntax_block_content",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "syntax_block_end",
-          "named": true
-        },
-        {
-          "type": "syntax_block_start",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "syntax_block_content",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "text",
@@ -508,57 +126,24 @@
   {
     "type": "wiki_block",
     "named": true,
-    "fields": {},
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "block_content",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": true,
       "types": [
         {
-          "type": "color_block",
-          "named": true
-        },
-        {
-          "type": "folding_block",
-          "named": true
-        },
-        {
-          "type": "html_block",
-          "named": true
-        },
-        {
-          "type": "if_block",
-          "named": true
-        },
-        {
-          "type": "latex_block",
-          "named": true
-        },
-        {
-          "type": "nowiki",
-          "named": true
-        },
-        {
-          "type": "scale_block",
-          "named": true
-        },
-        {
-          "type": "style_block",
-          "named": true
-        },
-        {
-          "type": "syntax_block",
-          "named": true
-        },
-        {
-          "type": "text",
-          "named": true
-        },
-        {
-          "type": "wiki_block",
-          "named": true
-        },
-        {
-          "type": "wiki_block_end",
+          "type": "bracket_end",
           "named": true
         },
         {
@@ -578,83 +163,15 @@
     "fields": {}
   },
   {
-    "type": "\n",
+    "type": "#!wiki",
     "named": false
   },
   {
-    "type": "color_block_end",
-    "named": true
-  },
-  {
-    "type": "color_block_start",
-    "named": true
-  },
-  {
-    "type": "folding_block_end",
-    "named": true
-  },
-  {
-    "type": "folding_block_start",
-    "named": true
-  },
-  {
-    "type": "html_block_end",
-    "named": true
-  },
-  {
-    "type": "html_block_start",
-    "named": true
-  },
-  {
-    "type": "if_block_end",
-    "named": true
-  },
-  {
-    "type": "if_block_start",
-    "named": true
-  },
-  {
-    "type": "latex_block_end",
-    "named": true
-  },
-  {
-    "type": "latex_block_start",
-    "named": true
-  },
-  {
-    "type": "nowiki_end",
+    "type": "bracket_end",
     "named": true
   },
   {
     "type": "nowiki_start",
-    "named": true
-  },
-  {
-    "type": "scale_block_end",
-    "named": true
-  },
-  {
-    "type": "scale_block_start",
-    "named": true
-  },
-  {
-    "type": "style_block_end",
-    "named": true
-  },
-  {
-    "type": "style_block_start",
-    "named": true
-  },
-  {
-    "type": "syntax_block_end",
-    "named": true
-  },
-  {
-    "type": "syntax_block_start",
-    "named": true
-  },
-  {
-    "type": "wiki_block_end",
     "named": true
   },
   {
