@@ -164,6 +164,7 @@ static bool consume_color_token(TSLexer *lexer) {
   return true;
 }
 
+// llm이 추천한 방식으로 변경
 static bool consume_language(TSLexer *lexer) {
   switch (lexer->lookahead) {
     case 'c':
@@ -337,32 +338,6 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         return true;
       }
     }
-    // int end_symbol;
-
-    // switch (top_type) {
-    //   case BLOCK_TYPE_NOWIKI: end_symbol = NOWIKI_END; break;
-    //   case BLOCK_TYPE_NOWIKI_NEST: end_symbol = NOWIKI_NEST_CLOSE; break;
-    //   case BLOCK_TYPE_IF: end_symbol = IF_BLOCK_END; break;
-    //   case BLOCK_TYPE_FOLDING: end_symbol = FOLDING_BLOCK_END; break;
-    //   case BLOCK_TYPE_SYNTAX: end_symbol = SYNTAX_BLOCK_END; break;
-    //   case BLOCK_TYPE_SYNTAX_NEST: end_symbol = SYNTAX_BLOCK_NEST_CLOSE; break;
-    //   case BLOCK_TYPE_WIKI: end_symbol = WIKI_BLOCK_END; break;
-    //   case BLOCK_TYPE_HTML: end_symbol = HTML_BLOCK_END; break;
-    //   case BLOCK_TYPE_HTML_NEST: end_symbol = HTML_BLOCK_NEST_CLOSE; break;
-    //   case BLOCK_TYPE_STYLE: end_symbol = STYLE_BLOCK_END; break;
-    //   case BLOCK_TYPE_STYLE_NEST: end_symbol = STYLE_BLOCK_NEST_CLOSE; break;
-    //   case BLOCK_TYPE_LATEX: end_symbol = LATEX_BLOCK_END; break;
-    //   case BLOCK_TYPE_LATEX_NEST: end_symbol = LATEX_BLOCK_NEST_CLOSE; break;
-    //   case BLOCK_TYPE_SCALE: end_symbol = SCALE_BLOCK_END; break;
-    //   case BLOCK_TYPE_COLOR: end_symbol = COLOR_BLOCK_END; break;
-    // }
-    
-    // if (valid_symbols[end_symbol] && lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
-    //   lexer->mark_end(lexer);
-    //   scanner->depth--;
-    //   lexer->result_symbol = end_symbol;
-    //   return true;
-    // }
   }
 
   // // 2. START 토큰 매칭
