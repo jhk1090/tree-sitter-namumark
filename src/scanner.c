@@ -281,8 +281,6 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
 
   bool has_trailing_space = false;
   bool has_closing_hash = false;
-  uint8_t hash_count = 0;
-  bool has_comment = false;
   uint8_t trailing_equals = 0;
   int32_t last_char = ' ';
 
@@ -301,28 +299,16 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
       }
       trailing_equals++;
     } else {
-      if (lexer->lookahead == '#') {
-        if (is_hidden && last_char == ' ' && trailing_equals == 0) {
-          has_trailing_space = true;
-        } else {
-          has_trailing_space = false;
-          has_closing_hash = false;
-        }
-        hash_count++;
-        if (hash_count >= 2) {
-          has_comment = true;
-        }
+      if (is_hidden && lexer->lookahead == '#' && last_char == ' ' && trailing_equals == 0) {
+        has_trailing_space = true;
       } else {
-        hash_count = 0;
+        has_trailing_space = false;
+        has_closing_hash = false;
       }
       trailing_equals = 0;
       last_char = lexer->lookahead;
     }
     lexer->advance(lexer, false);
-  }
-
-  if (has_comment) {
-    return NO_HEADING_TOKEN;
   }
   
   if (trailing_equals == open_count && has_trailing_space) {
@@ -396,7 +382,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
   }
 
-  if (lexer->lookahead == '#' && consume_string(lexer, "##") && valid_symbols[COMMENT]) {
+  if (lexer->get_column(lexer) == 0 && lexer->lookahead == '#' && consume_string(lexer, "##") && valid_symbols[COMMENT]) {
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
       lexer->advance(lexer, false);
     }
