@@ -142,6 +142,7 @@ module.exports = grammar({
         $.html_block,
         $.scale_block,
         $.color_block,
+        $.escape,
         $.inline_text
       )
     ),
@@ -242,6 +243,7 @@ module.exports = grammar({
       $.latex_block,
       $.scale_block,
       $.color_block,
+      $.escape,
       $.text,
     ),
 
@@ -376,6 +378,7 @@ module.exports = grammar({
       )
     ),
 
+    escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
       /[^{}=#\r\n]+/,
       token(prec(-10, '=')),
