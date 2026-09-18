@@ -5,6 +5,7 @@ module.exports = grammar({
   name: 'namumark',
 
   externals: $ => [
+    $.comment,
     $.nowiki_start,
     $.nowiki_implicit_end,
     $.if_block_start,
@@ -135,99 +136,102 @@ module.exports = grammar({
         $.heading1, $.heading2, $.heading3, $.heading4, $.heading5, $.heading6,
         $.hidden_heading1, $.hidden_heading2, $.hidden_heading3, $.hidden_heading4, $.hidden_heading5, $.hidden_heading6,
       ),
-    _heading_content: ($) => repeat1(
+    heading_content: ($) => repeat1(
       choice(
-        /[^\r\n=#]+/,
-        '#',
-        '='
+        $.nowiki,
+        $.html_block,
+        $.scale_block,
+        $.color_block,
+        $.inline_text
       )
     ),
     heading1: ($) =>
       seq(
         alias($.heading1_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/={1}/, $.heading_marker),
         /\r?\n/,
       ),
     heading2: ($) =>
       seq(
         alias($.heading2_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/={2}/, $.heading_marker),
         /\r?\n/,
       ),
     heading3: ($) =>
       seq(
         alias($.heading3_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/={3}/, $.heading_marker),
         /\r?\n/,
       ),
     heading4: ($) =>
       seq(
         alias($.heading4_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/={4}/, $.heading_marker),
         /\r?\n/,
       ),
     heading5: ($) =>
       seq(
         alias($.heading5_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/={5}/, $.heading_marker),
         /\r?\n/,
       ),
     heading6: ($) =>
       seq(
         alias($.heading6_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/={6}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading1: ($) =>
       seq(
         alias($.hidden_heading1_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/#={1}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading2: ($) =>
       seq(
         alias($.hidden_heading2_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/#={2}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading3: ($) =>
       seq(
         alias($.hidden_heading3_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/#={3}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading4: ($) =>
       seq(
         alias($.hidden_heading4_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/#={4}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading5: ($) =>
       seq(
         alias($.hidden_heading5_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/#={5}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading6: ($) =>
       seq(
         alias($.hidden_heading6_start, $.heading_marker),
-        field("title", $._heading_content),
+        field("title", $.heading_content),
         alias(/#={6}/, $.heading_marker),
         /\r?\n/,
       ),
 
     _node: $ => choice(
+      $.comment,
       $.nowiki,
       $.if_block,
       $.folding_block,
@@ -379,6 +383,13 @@ module.exports = grammar({
       /\r?\n/,
       '{',
       token(prec(-10, '}'))
-    ))
+    )),
+    inline_text: $ => prec(-1, choice(
+      /[^{}=#\r\n]+/,
+      token(prec(-10, '#')),
+      token(prec(-10, '=')),
+      '{',
+      token(prec(-10, '}')),
+    )),
   }
 });

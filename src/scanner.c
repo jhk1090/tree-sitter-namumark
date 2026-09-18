@@ -9,6 +9,7 @@
 #define NO_HEADING_TOKEN 0
 
 enum TokenType {
+  COMMENT,
   NOWIKI_START,
   NOWIKI_IMPLICIT_END,
   IF_BLOCK_START,
@@ -280,6 +281,8 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
 
   bool has_trailing_space = false;
   bool has_closing_hash = false;
+  uint8_t hash_count = 0;
+  bool has_comment = false;
   uint8_t trailing_equals = 0;
   int32_t last_char = ' ';
 
@@ -298,11 +301,19 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
       }
       trailing_equals++;
     } else {
-      if (is_hidden && lexer->lookahead == '#' && last_char == ' ' && trailing_equals == 0) {
-        has_trailing_space = true;
+      if (lexer->lookahead == '#') {
+        if (is_hidden && last_char == ' ' && trailing_equals == 0) {
+          has_trailing_space = true;
+        } else {
+          has_trailing_space = false;
+          has_closing_hash = false;
+        }
+        hash_count++;
+        if (hash_count >= 2) {
+          has_comment = true;
+        }
       } else {
-        has_trailing_space = false;
-        has_closing_hash = false;
+        hash_count = 0;
       }
       trailing_equals = 0;
       last_char = lexer->lookahead;
@@ -310,6 +321,10 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
     lexer->advance(lexer, false);
   }
 
+  if (has_comment) {
+    return NO_HEADING_TOKEN;
+  }
+  
   if (trailing_equals == open_count && has_trailing_space) {
     if (!is_hidden || has_closing_hash) {
       return target_symbol;
@@ -379,6 +394,16 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       lexer->result_symbol = result_symbol;
       return true;
     }
+  }
+
+  if (lexer->lookahead == '#' && consume_string(lexer, "##") && valid_symbols[COMMENT]) {
+    while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
+      lexer->advance(lexer, false);
+    }
+
+    lexer->mark_end(lexer);
+    lexer->result_symbol = COMMENT;
+    return true;
   }
 
   // 1. END 토큰 매칭 (}}})
