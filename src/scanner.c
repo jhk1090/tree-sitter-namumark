@@ -147,45 +147,50 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_
   return register_token(lexer, scanner, token, block);
 }
 
-static uint8_t consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
+typedef struct {
+  uint8_t token;
+  uint8_t block;
+} ConsumeResult;
+
+static ConsumeResult consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
   if (lexer->lookahead != ' ') {
-    return NOWIKI_START;
+    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
   }
 
   lexer->advance(lexer, false);
 
   if (!consume_language(lexer)) {
-    return NOWIKI_START;
+    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
   }
   
   if (!consume_newline(lexer)) {
-    return NOWIKI_START;
+    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
   }
 
-  return SYNTAX_BLOCK_START;
+  return (ConsumeResult){.token = SYNTAX_BLOCK_START, .block = BLOCK_TYPE_SYNTAX};
 }
 
-static uint8_t consume_scale_block(TSLexer *lexer, Scanner *scanner) {
+static ConsumeResult consume_scale_block(TSLexer *lexer, Scanner *scanner) {
   if (lexer->lookahead != '+' && lexer->lookahead != '-') {
-    return NOWIKI_START;
+    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
   }
 
   lexer->advance(lexer, false);
 
   if (!(lexer->lookahead >= '1' && lexer->lookahead <= '5')) {
-    return NOWIKI_START;
+    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
   }
 
   lexer->advance(lexer, false);
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return NOWIKI_START;
+      return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
     }
     lexer->advance(lexer, false);
   }
 
-  return SCALE_BLOCK_START;
+  return (ConsumeResult){.token = SCALE_BLOCK_START, .block = BLOCK_TYPE_SCALE};
 }
 
 static bool is_hex_digit(char c) {
@@ -228,26 +233,26 @@ static bool consume_single_color(TSLexer *lexer) {
   return false;
 }
 
-static uint8_t consume_color_block(TSLexer *lexer, Scanner *scanner) {
-  if (!consume_single_color(lexer)) return NOWIKI_START;
+static ConsumeResult consume_color_block(TSLexer *lexer, Scanner *scanner) {
+  if (!consume_single_color(lexer)) return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
 
   if (lexer->lookahead == ',') {
     lexer->advance(lexer, false);
     if (lexer->lookahead != '#') {
-      return NOWIKI_START;
+      return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
     }
     lexer->advance(lexer, false);
-    if (!consume_single_color(lexer)) return NOWIKI_START;
+    if (!consume_single_color(lexer)) return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
   }
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return NOWIKI_START;
+      return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
     }
     lexer->advance(lexer, false);
   }
 
-  return COLOR_BLOCK_START;
+  return (ConsumeResult){.token = COLOR_BLOCK_START, .block = BLOCK_TYPE_COLOR};
 }
 
 static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
@@ -447,14 +452,15 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           }
           if (consume_string(lexer, "s")) {
             if (valid_symbols[SYNTAX_BLOCK_START] && consume_string(lexer, "yntax")) {
-              return register_token(lexer, scanner, consume_syntax_block(lexer, scanner), BLOCK_TYPE_SYNTAX);
+              ConsumeResult result = consume_syntax_block(lexer, scanner);
+              return register_token(lexer, scanner, result.token, result.block);
             }
             if (valid_symbols[STYLE_BLOCK_START] && consume_string(lexer, "tyle")) {
-              uint8_t token = STYLE_BLOCK_START;
+              ConsumeResult result = (ConsumeResult){.token = STYLE_BLOCK_START, .block = BLOCK_TYPE_STYLE};
               if (!consume_newline(lexer)) {
-                token = NOWIKI_START;
+                result = (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
               }
-              return register_token(lexer, scanner, token, BLOCK_TYPE_STYLE);
+              return register_token(lexer, scanner, result.token, result.block);
             }
           }
           if (valid_symbols[WIKI_BLOCK_START] && consume_string(lexer, "wiki")) {
@@ -464,22 +470,24 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
             return register_token(lexer, scanner, HTML_BLOCK_START, BLOCK_TYPE_HTML);
           }
           if (valid_symbols[LATEX_BLOCK_START] && consume_string(lexer, "latex")) {
-            uint8_t token = LATEX_BLOCK_START;
+            ConsumeResult result = (ConsumeResult){.token = LATEX_BLOCK_START, .block = BLOCK_TYPE_LATEX};
             if (!consume_newline(lexer)) {
-              token = NOWIKI_START;
+              result = (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
             }
-            return register_token(lexer, scanner, token, BLOCK_TYPE_LATEX);
+            return register_token(lexer, scanner, result.token, result.block);
           }
         } 
         // 2-2. '#!'가 아니고 바로 색상명이 시작하는 케이스 (COLOR_BLOCK_START)
         else if (valid_symbols[COLOR_BLOCK_START]) {
-          return register_token(lexer, scanner, consume_color_block(lexer, scanner), BLOCK_TYPE_COLOR);
+          ConsumeResult result = consume_color_block(lexer, scanner);
+          return register_token(lexer, scanner, result.token, result.block);
         }
       }
 
       // 글자 크기 블록 ({{{+1 ...}}}, {{{-2 ...}}})
       if (valid_symbols[SCALE_BLOCK_START]) {
-        return register_token(lexer, scanner, consume_scale_block(lexer, scanner), BLOCK_TYPE_SCALE);
+        ConsumeResult result = consume_scale_block(lexer, scanner);
+        return register_token(lexer, scanner, result.token, result.block);
       }
 
       // 4. Default Fallback -> NOWIKI
