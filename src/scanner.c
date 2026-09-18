@@ -10,16 +10,21 @@
 
 enum TokenType {
   NOWIKI_START,
+  NOWIKI_IMPLICIT_END,
   IF_BLOCK_START,
   IF_BLOCK_IMPLICIT_END,
   FOLDING_BLOCK_START,
   FOLDING_BLOCK_IMPLICIT_END,
   SYNTAX_BLOCK_START,
+  SYNTAX_BLOCK_IMPLICIT_END,
   WIKI_BLOCK_START,
   WIKI_BLOCK_IMPLICIT_END,
   HTML_BLOCK_START,
+  HTML_BLOCK_IMPLICIT_END,
   STYLE_BLOCK_START,
+  STYLE_BLOCK_IMPLICIT_END,
   LATEX_BLOCK_START,
+  LATEX_BLOCK_IMPLICIT_END,
   SCALE_BLOCK_START,
   SCALE_BLOCK_IMPLICIT_END,
   COLOR_BLOCK_START,
@@ -352,6 +357,29 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
+
+  if (lexer->eof(lexer) && scanner->depth > 0) {
+    uint8_t result_symbol = 255;
+    switch (top_type) {
+        case BLOCK_TYPE_NOWIKI: result_symbol = NOWIKI_IMPLICIT_END; break;
+        case BLOCK_TYPE_IF: result_symbol = IF_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_FOLDING: result_symbol = FOLDING_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_SYNTAX: result_symbol = SYNTAX_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_WIKI: result_symbol = WIKI_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_HTML: result_symbol = HTML_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_STYLE: result_symbol = STYLE_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_LATEX: result_symbol = LATEX_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_SCALE: result_symbol = SCALE_BLOCK_IMPLICIT_END; break;
+        case BLOCK_TYPE_COLOR: result_symbol = COLOR_BLOCK_IMPLICIT_END; break;
+        default: break;
+    }
+
+    if (result_symbol != 255 && valid_symbols[result_symbol]) {
+      scanner->depth--;
+      lexer->result_symbol = result_symbol;
+      return true;
+    }
+  }
 
   // 1. END 토큰 매칭 (}}})
   if (scanner->depth > 0) {

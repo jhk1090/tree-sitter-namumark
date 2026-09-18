@@ -6,16 +6,21 @@ module.exports = grammar({
 
   externals: $ => [
     $.nowiki_start,
+    $.nowiki_implicit_end,
     $.if_block_start,
     $.if_block_implicit_end,
     $.folding_block_start,
     $.folding_block_implicit_end,
     $.syntax_block_start,
+    $.syntax_block_implicit_end,
     $.wiki_block_start,
     $.wiki_block_implicit_end,
     $.html_block_start,
+    $.html_block_implicit_end,
     $.style_block_start,
+    $.style_block_implicit_end,
     $.latex_block_start,
+    $.latex_block_implicit_end,
     $.scale_block_start,
     $.scale_block_implicit_end,
     $.color_block_start,
@@ -266,14 +271,20 @@ module.exports = grammar({
       $.block_header,
       /\r?\n/,
       optional(field('content', $.nowiki_content)),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.syntax_block_implicit_end
+      )
     ),
 
     html_block: $ => seq(
       $.html_block_start,
       "#!html",
       optional(field('content', $.nowiki_content)),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.html_block_implicit_end
+      )
     ),
 
     style_block: $ => seq(
@@ -281,7 +292,10 @@ module.exports = grammar({
       "#!style",
       /\r?\n/,
       optional(field('content', $.nowiki_content)),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.style_block_implicit_end
+      )
     ),
 
     latex_block: $ => seq(
@@ -289,7 +303,10 @@ module.exports = grammar({
       "#!latex",
       /\r?\n/,
       optional(field('content', $.nowiki_content)),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.latex_block_implicit_end
+      )
     ),
 
     wiki_block: $ => seq(
@@ -337,12 +354,15 @@ module.exports = grammar({
     nowiki: $ => seq(
       $.nowiki_start,
       optional(field('content', $.nowiki_content)),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.nowiki_implicit_end
+      )
     ),
 
     nowiki_content: $ => repeat1(
       choice(
-        seq($.nowiki_start, optional($.nowiki_content), $.bracket_end),
+        seq($.nowiki_start, optional($.nowiki_content), choice($.bracket_end, $.nowiki_implicit_end)),
         /[^{}\r\n]+/,
         token(prec(-10, '=')),
         token(prec(-10, '#')),
