@@ -6,17 +6,24 @@
 #include <string.h>
 #include <stdio.h>
 
+#define NO_HEADING_TOKEN 0
+
 enum TokenType {
   NOWIKI_START,
   IF_BLOCK_START,
+  IF_BLOCK_IMPLICIT_END,
   FOLDING_BLOCK_START,
+  FOLDING_BLOCK_IMPLICIT_END,
   SYNTAX_BLOCK_START,
   WIKI_BLOCK_START,
+  WIKI_BLOCK_IMPLICIT_END,
   HTML_BLOCK_START,
   STYLE_BLOCK_START,
   LATEX_BLOCK_START,
   SCALE_BLOCK_START,
+  SCALE_BLOCK_IMPLICIT_END,
   COLOR_BLOCK_START,
+  COLOR_BLOCK_IMPLICIT_END,
   BRACKET_END,
   HEADING1_START,
   HEADING2_START,
@@ -30,6 +37,19 @@ enum TokenType {
   HIDDEN_HEADING4_START,
   HIDDEN_HEADING5_START,
   HIDDEN_HEADING6_START,
+};
+
+enum BlockType {
+  BLOCK_TYPE_NOWIKI,
+  BLOCK_TYPE_IF,
+  BLOCK_TYPE_FOLDING,
+  BLOCK_TYPE_SYNTAX,
+  BLOCK_TYPE_WIKI,
+  BLOCK_TYPE_HTML,
+  BLOCK_TYPE_STYLE,
+  BLOCK_TYPE_LATEX,
+  BLOCK_TYPE_SCALE,
+  BLOCK_TYPE_COLOR
 };
 
 typedef struct {
@@ -90,20 +110,22 @@ static bool consume_language(TSLexer *lexer) {
   return is_valid;
 }
 
-static bool register_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
+static bool register_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE) {
   if (scanner->depth < 256) {
-    scanner->depth++;
+    scanner->stack[scanner->depth++] = BLOCK_TYPE;
   }
 
   lexer->result_symbol = TOKEN_TYPE;
   return true;
 }
 
-static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE) {
+static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE) {
   uint8_t token = TOKEN_TYPE;
+  uint8_t block = BLOCK_TYPE;
   if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
     if (lexer->lookahead != ' ') {
       token = NOWIKI_START;
+      block = BLOCK_TYPE_NOWIKI;
     }
 
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
@@ -113,9 +135,10 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_
 
   if (!consume_newline(lexer)) {
     token = NOWIKI_START;
+    block = BLOCK_TYPE_NOWIKI;
   }
 
-  return register_token(lexer, scanner, token);
+  return register_token(lexer, scanner, token, block);
 }
 
 static uint8_t consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
@@ -221,6 +244,76 @@ static uint8_t consume_color_block(TSLexer *lexer, Scanner *scanner) {
   return COLOR_BLOCK_START;
 }
 
+static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
+  if (lexer->get_column(lexer) != 0) return NO_HEADING_TOKEN;
+  if (lexer->lookahead != '=') return NO_HEADING_TOKEN;
+
+  if (preserve_start) {
+    lexer->mark_end(lexer);
+  }
+
+  uint8_t open_count = 0;
+  while (lexer->lookahead == '=' && open_count < 6) {
+    lexer->advance(lexer, false);
+    open_count++;
+  }
+
+  bool is_hidden = false;
+  if (lexer->lookahead == '#') {
+    is_hidden = true;
+    lexer->advance(lexer, false);
+  }
+
+  uint8_t base_symbol = is_hidden ? HIDDEN_HEADING1_START : HEADING1_START;
+  uint8_t target_symbol = base_symbol + (open_count - 1);
+
+  if (open_count == 0 || open_count > 6 || lexer->lookahead != ' ') { return NO_HEADING_TOKEN; }
+
+  if (!preserve_start) {
+    lexer->mark_end(lexer);
+  }
+
+  bool has_trailing_space = false;
+  bool has_closing_hash = false;
+  uint8_t trailing_equals = 0;
+  int32_t last_char = ' ';
+
+  while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
+    if (lexer->lookahead == '=') {
+      if (trailing_equals == 0) {
+        if (is_hidden) {
+          if (last_char == '#') {
+            has_closing_hash = true;
+          }
+        } else {
+          if (last_char == ' ') {
+            has_trailing_space = true;
+          }
+        }
+      }
+      trailing_equals++;
+    } else {
+      if (is_hidden && lexer->lookahead == '#' && last_char == ' ' && trailing_equals == 0) {
+        has_trailing_space = true;
+      } else {
+        has_trailing_space = false;
+        has_closing_hash = false;
+      }
+      trailing_equals = 0;
+      last_char = lexer->lookahead;
+    }
+    lexer->advance(lexer, false);
+  }
+
+  if (trailing_equals == open_count && has_trailing_space) {
+    if (!is_hidden || has_closing_hash) {
+      return target_symbol;
+    }
+  }
+
+  return NO_HEADING_TOKEN;
+}
+
 
 // --- Lifecycle 함수들 ---
 
@@ -260,70 +353,6 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
 
-  if (lexer->get_column(lexer) == 0 && lexer->lookahead == '=') {
-    uint8_t open_count = 0;
-    while (lexer->lookahead == '=' && open_count < 6) {
-      lexer->advance(lexer, false);
-      open_count++;
-    }
-
-    bool is_hidden = 0;
-    if (lexer->lookahead == '#') {
-      is_hidden = true;
-      lexer->advance(lexer, false);
-    }
-
-    uint8_t base_symbol = is_hidden ? HIDDEN_HEADING1_START : HEADING1_START;
-    uint8_t target_symbol = base_symbol + (open_count - 1);
-
-    if (open_count >= 1 && open_count <= 6 && valid_symbols[target_symbol]) {
-      if (lexer->lookahead != ' ') {
-        return false;
-      }
-
-      lexer->mark_end(lexer);
-
-      bool has_trailing_space = false;
-      bool has_closing_hash = false;
-      uint8_t trailing_equals = 0;
-      int32_t last_char = ' ';
-
-      while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
-        if (lexer->lookahead == '=') {
-          if (trailing_equals == 0) {
-            if (is_hidden) {
-              if (last_char == '#') {
-                has_closing_hash = true;
-              }
-            } else {
-              if (last_char == ' ') {
-                has_trailing_space = true;
-              }
-            }
-          }
-          trailing_equals++;
-        } else {
-          if (is_hidden && lexer->lookahead == '#' && last_char == ' ' && trailing_equals == 0) {
-            has_trailing_space = true;
-          } else {
-            has_trailing_space = false;
-            has_closing_hash = false;
-          }
-          trailing_equals = 0;
-          last_char = lexer->lookahead;
-        }
-        lexer->advance(lexer, false);
-      }
-
-      if (trailing_equals == open_count && has_trailing_space) {
-        if (!is_hidden || has_closing_hash) {
-          lexer->result_symbol = target_symbol;
-          return true;
-        }
-      }
-    }
-  }
-
   // 1. END 토큰 매칭 (}}})
   if (scanner->depth > 0) {
     if (valid_symbols[BRACKET_END]) {
@@ -333,6 +362,28 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         lexer->result_symbol = BRACKET_END;
         return true;
       }
+    }
+  }
+
+  uint8_t target_symbol = 255;
+  switch (top_type) {
+      case BLOCK_TYPE_IF: target_symbol = IF_BLOCK_START; break;
+      case BLOCK_TYPE_FOLDING: target_symbol = FOLDING_BLOCK_START; break;
+      case BLOCK_TYPE_WIKI: target_symbol = WIKI_BLOCK_START; break;
+      case BLOCK_TYPE_SCALE: target_symbol = SCALE_BLOCK_START; break;
+      case BLOCK_TYPE_COLOR: target_symbol = COLOR_BLOCK_START; break;
+      default: break;
+  }
+  uint8_t heading_token = match_heading_token(lexer, target_symbol != 255 && valid_symbols[target_symbol]);
+  if (heading_token != NO_HEADING_TOKEN) {
+    if (target_symbol != 255 && valid_symbols[target_symbol]) {
+      scanner->depth--;
+      lexer->result_symbol = target_symbol + 1; // Implicit End Token
+      return true;
+    }
+    if (valid_symbols[heading_token]) {
+      lexer->result_symbol = heading_token;
+      return true;
     }
   }
 
@@ -350,51 +401,51 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           lexer->advance(lexer, false); // '!' 소비
 
           if (valid_symbols[IF_BLOCK_START] && consume_string(lexer, "if")) {
-            return consume_depth_block(lexer, scanner, IF_BLOCK_START);
+            return consume_depth_block(lexer, scanner, IF_BLOCK_START, BLOCK_TYPE_IF);
           }
           if (valid_symbols[FOLDING_BLOCK_START] && consume_string(lexer, "folding")) {
-            return consume_depth_block(lexer, scanner, FOLDING_BLOCK_START);
+            return consume_depth_block(lexer, scanner, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING);
           }
           if (consume_string(lexer, "s")) {
             if (valid_symbols[SYNTAX_BLOCK_START] && consume_string(lexer, "yntax")) {
-              return register_token(lexer, scanner, consume_syntax_block(lexer, scanner));
+              return register_token(lexer, scanner, consume_syntax_block(lexer, scanner), BLOCK_TYPE_SYNTAX);
             }
             if (valid_symbols[STYLE_BLOCK_START] && consume_string(lexer, "tyle")) {
               uint8_t token = STYLE_BLOCK_START;
               if (!consume_newline(lexer)) {
                 token = NOWIKI_START;
               }
-              return register_token(lexer, scanner, token);
+              return register_token(lexer, scanner, token, BLOCK_TYPE_STYLE);
             }
           }
           if (valid_symbols[WIKI_BLOCK_START] && consume_string(lexer, "wiki")) {
-            return consume_depth_block(lexer, scanner, WIKI_BLOCK_START);
+            return consume_depth_block(lexer, scanner, WIKI_BLOCK_START, BLOCK_TYPE_WIKI);
           }
           if (valid_symbols[HTML_BLOCK_START] && consume_string(lexer, "html")) {
-            return register_token(lexer, scanner, HTML_BLOCK_START);
+            return register_token(lexer, scanner, HTML_BLOCK_START, BLOCK_TYPE_HTML);
           }
           if (valid_symbols[LATEX_BLOCK_START] && consume_string(lexer, "latex")) {
             uint8_t token = LATEX_BLOCK_START;
             if (!consume_newline(lexer)) {
               token = NOWIKI_START;
             }
-            return register_token(lexer, scanner, token);
+            return register_token(lexer, scanner, token, BLOCK_TYPE_LATEX);
           }
         } 
         // 2-2. '#!'가 아니고 바로 색상명이 시작하는 케이스 (COLOR_BLOCK_START)
         else if (valid_symbols[COLOR_BLOCK_START]) {
-          return register_token(lexer, scanner, consume_color_block(lexer, scanner));
+          return register_token(lexer, scanner, consume_color_block(lexer, scanner), BLOCK_TYPE_COLOR);
         }
       }
 
       // 글자 크기 블록 ({{{+1 ...}}}, {{{-2 ...}}})
       if (valid_symbols[SCALE_BLOCK_START]) {
-        return register_token(lexer, scanner, consume_scale_block(lexer, scanner));
+        return register_token(lexer, scanner, consume_scale_block(lexer, scanner), BLOCK_TYPE_SCALE);
       }
 
       // 4. Default Fallback -> NOWIKI
       if (valid_symbols[NOWIKI_START]) {
-        return register_token(lexer, scanner, NOWIKI_START);
+        return register_token(lexer, scanner, NOWIKI_START, BLOCK_TYPE_NOWIKI);
       }
     }
   }

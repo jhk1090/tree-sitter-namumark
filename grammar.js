@@ -7,14 +7,19 @@ module.exports = grammar({
   externals: $ => [
     $.nowiki_start,
     $.if_block_start,
+    $.if_block_implicit_end,
     $.folding_block_start,
+    $.folding_block_implicit_end,
     $.syntax_block_start,
     $.wiki_block_start,
+    $.wiki_block_implicit_end,
     $.html_block_start,
     $.style_block_start,
     $.latex_block_start,
     $.scale_block_start,
+    $.scale_block_implicit_end,
     $.color_block_start,
+    $.color_block_implicit_end,
     $.bracket_end,
     $.heading1_start,
     $.heading2_start,
@@ -237,7 +242,10 @@ module.exports = grammar({
       optional($.block_header),
       /\r?\n/,
       optional($.block_content),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.if_block_implicit_end
+      )
     ),
 
     folding_block: $ => seq(
@@ -246,7 +254,10 @@ module.exports = grammar({
       optional($.block_header),
       /\r?\n/,
       optional($.block_content),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.folding_block_implicit_end
+      )
     ),
 
     syntax_block: $ => seq(
@@ -287,7 +298,10 @@ module.exports = grammar({
       optional($.block_header),
       /\r?\n/,
       optional($.block_content),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.wiki_block_implicit_end
+      )
     ),
 
     block_header: $ => repeat1(/[^\n\s]+/),
@@ -298,7 +312,10 @@ module.exports = grammar({
       $.scale_size,
       /\r?\n| /,
       optional($.block_content),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.scale_block_implicit_end
+      )
     ),
     scale_size: $ => token(/[+-][1-5]/),
 
@@ -310,7 +327,10 @@ module.exports = grammar({
       ),
       /\r?\n| /,
       optional($.block_content),
-      $.bracket_end
+      choice(
+        $.bracket_end,
+        $.color_block_implicit_end
+      )
     ),
     color_color: $ => token(/[^\n\s,]+/),
 
