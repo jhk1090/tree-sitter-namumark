@@ -349,12 +349,12 @@ module.exports = grammar({
       field("lang", $.wiki_lang_attr)
     ),
 
-    // 각 속성별 패턴 (큰따옴표/작은따옴표 모두 대응 필요시 정규식 조정)
-    wiki_style_attr: ($) => seq('style="', field("value", /[^"]*/), '"'),
-    wiki_dark_style_attr: ($) => seq('dark-style="', field("value", /[^"]*/), '"'),
-    wiki_tag_attr: ($) => seq('tag="', field("value", /[^"]*/), '"'),
-    wiki_class_attr: ($) => seq('class="', field("value", /[^"]*/), '"'),
-    wiki_lang_attr: ($) => seq('lang="', field("value", /[^"]*/), '"'),
+    // 끝나는 따옴표가 있어야지만 유효 (TODO: value field 나오게금 수정)
+    wiki_style_attr: ($) => seq('style="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
+    wiki_dark_style_attr: ($) => seq('dark-style="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
+    wiki_tag_attr: ($) => seq('tag="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
+    wiki_class_attr: ($) => seq('class="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
+    wiki_lang_attr: ($) => seq('lang="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
 
     block_header: $ => repeat1(/[^\n\s]+/),
     block_content: $ => repeat1($._node),
