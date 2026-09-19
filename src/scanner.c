@@ -53,6 +53,7 @@ enum BlockType {
 };
 
 typedef struct {
+  bool in_heading;
   bool in_macro;
   uint32_t depth;
   uint8_t stack[256];
@@ -423,29 +424,32 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   Scanner *scanner = (Scanner *)payload;
   if (scanner->depth > 255) return 0;
 
-  buffer[0] = (char)scanner->in_macro;
-  buffer[1] = (char)scanner->depth;
+  buffer[0] = (char)scanner->in_heading;
+  buffer[1] = (char)scanner->in_macro;
+  buffer[2] = (char)scanner->depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    buffer[2 + i] = (char)scanner->stack[i];
+    buffer[3 + i] = (char)scanner->stack[i];
   }
-  return scanner->depth + 2;
+  return scanner->depth + 3;
 }
 
 void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
   Scanner *scanner = (Scanner *)payload;
+  scanner->in_heading = false;
   scanner->in_macro = false;
   scanner->depth = 0;
 
-  if (length < 2 || buffer == NULL) return;
+  if (length < 3 || buffer == NULL) return;
 
-  scanner->in_macro = (bool)buffer[0];
-  uint8_t saved_depth = (uint8_t)buffer[1];
+  scanner->in_heading = (bool)buffer[0];
+  scanner->in_macro = (bool)buffer[1];
+  uint8_t saved_depth = (uint8_t)buffer[2];
 
-  if (length < 2 + saved_depth) return;
+  if (length < 3 + saved_depth) return;
 
   scanner->depth = saved_depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    scanner->stack[i] = (uint8_t)buffer[2 + i];
+    scanner->stack[i] = (uint8_t)buffer[3 + i];
   }
 }
 
@@ -500,6 +504,23 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
   }
 
+  if (scanner->in_heading && (valid_symbols[BRACKET_IMPLICIT_END] || valid_symbols[MACRO_IMPLICIT_END])) {
+    fprintf(stderr, "column: %d", lexer->get_column(lexer));
+    if (lexer->lookahead == '#' || lexer->lookahead == '=') {
+      if (scanner->depth > 0) {
+        scanner->depth--;
+        lexer->result_symbol = BRACKET_IMPLICIT_END;
+        return true;
+      }
+      if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
+        scanner->in_macro = false;
+        lexer->result_symbol = MACRO_IMPLICIT_END;
+        return true;
+      }
+      scanner->in_heading = false;
+    }
+  }
+
   bool is_breakable_bracket = false;
   switch (top_type) {
       case BLOCK_TYPE_IF:
@@ -527,6 +548,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       return true;
     }
     if (valid_symbols[heading_token]) {
+      scanner->in_heading = true;
       lexer->result_symbol = heading_token;
       return true;
     }

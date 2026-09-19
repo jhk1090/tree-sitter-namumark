@@ -457,7 +457,7 @@ module.exports = grammar({
     nowiki_content_inline: $ => repeat1(
       choice(
         seq($.nowiki_start, optional($.nowiki_content_inline), choice($.bracket_end, $.bracket_implicit_end)),
-        /[^{}\r\n]+/,
+        /[^{}=#\r\n]+/,
         token(prec(-10, '=')),
         token(prec(-10, '#')),
         '{',
