@@ -327,7 +327,7 @@ module.exports = grammar({
     wiki_block: $ => seq(
       $.wiki_block_start,
       "#!wiki",
-      optional($.block_header),
+      optional($.wiki_block_header),
       /\r?\n/,
       optional($.block_content),
       choice(
@@ -335,6 +335,26 @@ module.exports = grammar({
         $.bracket_implicit_end
       )
     ),
+    wiki_block_header: ($) => repeat1(choice(
+      $._wiki_attribute,
+      /[^\n\s]/ // 속성 없이 그냥 일반 헤더만 오는 경우
+    )),
+
+    // 5가지 속성 중 하나와 매칭
+    _wiki_attribute: ($) => choice(
+      field("style", $.wiki_style_attr),
+      field("dark_style", $.wiki_dark_style_attr),
+      field("tag", $.wiki_tag_attr),
+      field("class", $.wiki_class_attr),
+      field("lang", $.wiki_lang_attr)
+    ),
+
+    // 각 속성별 패턴 (큰따옴표/작은따옴표 모두 대응 필요시 정규식 조정)
+    wiki_style_attr: ($) => seq('style="', field("value", /[^"]*/), '"'),
+    wiki_dark_style_attr: ($) => seq('dark-style="', field("value", /[^"]*/), '"'),
+    wiki_tag_attr: ($) => seq('tag="', field("value", /[^"]*/), '"'),
+    wiki_class_attr: ($) => seq('class="', field("value", /[^"]*/), '"'),
+    wiki_lang_attr: ($) => seq('lang="', field("value", /[^"]*/), '"'),
 
     block_header: $ => repeat1(/[^\n\s]+/),
     block_content: $ => repeat1($._node),
