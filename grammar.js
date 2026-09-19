@@ -13,26 +13,17 @@ module.exports = grammar({
   externals: $ => [
     $.comment,
     $.nowiki_start,
-    $.nowiki_implicit_end,
     $.if_block_start,
-    $.if_block_implicit_end,
     $.folding_block_start,
-    $.folding_block_implicit_end,
     $.syntax_block_start,
-    $.syntax_block_implicit_end,
     $.wiki_block_start,
-    $.wiki_block_implicit_end,
     $.html_block_start,
-    $.html_block_implicit_end,
     $.style_block_start,
-    $.style_block_implicit_end,
     $.latex_block_start,
-    $.latex_block_implicit_end,
     $.scale_block_start,
-    $.scale_block_implicit_end,
     $.color_block_start,
-    $.color_block_implicit_end,
     $.bracket_end,
+    $.bracket_implicit_end,
     $.heading1_start,
     $.heading2_start,
     $.heading3_start,
@@ -266,7 +257,7 @@ module.exports = grammar({
       optional($.block_content),
       choice(
         $.bracket_end,
-        $.if_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
@@ -278,7 +269,7 @@ module.exports = grammar({
       optional($.block_content),
       choice(
         $.bracket_end,
-        $.folding_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
@@ -290,7 +281,7 @@ module.exports = grammar({
       optional(field('content', $.nowiki_content)),
       choice(
         $.bracket_end,
-        $.syntax_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
@@ -300,7 +291,7 @@ module.exports = grammar({
       optional(field('content', $.nowiki_content)),
       choice(
         $.bracket_end,
-        $.html_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
     html_block_inline: $ => seq(
@@ -309,7 +300,7 @@ module.exports = grammar({
       optional(field('content', $.nowiki_content_inline)),
       choice(
         $.bracket_end,
-        $.html_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
@@ -320,7 +311,7 @@ module.exports = grammar({
       optional(field('content', $.nowiki_content)),
       choice(
         $.bracket_end,
-        $.style_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
@@ -331,7 +322,7 @@ module.exports = grammar({
       optional(field('content', $.nowiki_content)),
       choice(
         $.bracket_end,
-        $.latex_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
@@ -343,7 +334,7 @@ module.exports = grammar({
       optional($.block_content),
       choice(
         $.bracket_end,
-        $.wiki_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
@@ -358,7 +349,7 @@ module.exports = grammar({
       optional($.block_content),
       choice(
         $.bracket_end,
-        $.scale_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
     scale_block_inline: $ => seq(
@@ -368,7 +359,7 @@ module.exports = grammar({
       optional($.block_content_inline),
       choice(
         $.bracket_end,
-        $.scale_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
     scale_size: $ => token(/[+-][1-5]/),
@@ -383,7 +374,7 @@ module.exports = grammar({
       optional($.block_content),
       choice(
         $.bracket_end,
-        $.color_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
     color_block_inline: $ => seq(
@@ -396,7 +387,7 @@ module.exports = grammar({
       optional($.block_content_inline),
       choice(
         $.bracket_end,
-        $.color_block_implicit_end
+        $.bracket_implicit_end
       )
     ),
     color_color: $ => token(/[^\n\s,]+/),
@@ -406,7 +397,13 @@ module.exports = grammar({
       $.macro_start,
       choice(...macrosWithArgs, ...macrosWithoutArgs),
       "(",
-      choice(/[^=)]*/, prec(-10, "=")),
+      repeat(
+        choice(
+          /[^=)]/,
+          token(prec(-10, '=')),
+          token(prec(-10, ')'))
+        )
+      ),
       choice(
         $.macro_end,
         $.macro_implicit_end
@@ -416,7 +413,13 @@ module.exports = grammar({
       $.macro_start,
       choice(...macrosWithArgs, ...macrosWithoutArgs),
       "(",
-      choice(/[^=\r\n)]*/, prec(-10, "=")),
+      repeat(
+        choice(
+          /[^=\r\n)]/,
+          token(prec(-10, '=')),
+          token(prec(-10, ')'))
+        )
+      ),
       choice(
         $.macro_end,
         $.macro_implicit_end
@@ -428,7 +431,7 @@ module.exports = grammar({
       optional(field('content', $.nowiki_content)),
       choice(
         $.bracket_end,
-        $.nowiki_implicit_end
+        $.bracket_implicit_end
       )
     ),
     nowiki_inline: $ => seq(
@@ -436,13 +439,13 @@ module.exports = grammar({
       optional(field('content', $.nowiki_content_inline)),
       choice(
         $.bracket_end,
-        $.nowiki_implicit_end
+        $.bracket_implicit_end
       )
     ),
 
     nowiki_content: $ => repeat1(
       choice(
-        seq($.nowiki_start, optional($.nowiki_content), choice($.bracket_end, $.nowiki_implicit_end)),
+        seq($.nowiki_start, optional($.nowiki_content), choice($.bracket_end, $.bracket_implicit_end)),
         /[^{}\r\n]+/,
         token(prec(-10, '=')),
         token(prec(-10, '#')),
@@ -453,7 +456,7 @@ module.exports = grammar({
     ),
     nowiki_content_inline: $ => repeat1(
       choice(
-        seq($.nowiki_start, optional($.nowiki_content_inline), choice($.bracket_end, $.nowiki_implicit_end)),
+        seq($.nowiki_start, optional($.nowiki_content_inline), choice($.bracket_end, $.bracket_implicit_end)),
         /[^{}\r\n]+/,
         token(prec(-10, '=')),
         token(prec(-10, '#')),

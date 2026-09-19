@@ -11,26 +11,17 @@
 enum TokenType {
   COMMENT,
   NOWIKI_START,
-  NOWIKI_IMPLICIT_END,
   IF_BLOCK_START,
-  IF_BLOCK_IMPLICIT_END,
   FOLDING_BLOCK_START,
-  FOLDING_BLOCK_IMPLICIT_END,
   SYNTAX_BLOCK_START,
-  SYNTAX_BLOCK_IMPLICIT_END,
   WIKI_BLOCK_START,
-  WIKI_BLOCK_IMPLICIT_END,
   HTML_BLOCK_START,
-  HTML_BLOCK_IMPLICIT_END,
   STYLE_BLOCK_START,
-  STYLE_BLOCK_IMPLICIT_END,
   LATEX_BLOCK_START,
-  LATEX_BLOCK_IMPLICIT_END,
   SCALE_BLOCK_START,
-  SCALE_BLOCK_IMPLICIT_END,
   COLOR_BLOCK_START,
-  COLOR_BLOCK_IMPLICIT_END,
   BRACKET_END,
+  BRACKET_IMPLICIT_END,
   HEADING1_START,
   HEADING2_START,
   HEADING3_START,
@@ -466,26 +457,9 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
 
   if (lexer->eof(lexer)) {
     if (scanner->depth > 0) {
-      uint8_t result_symbol = 255;
-      switch (top_type) {
-          case BLOCK_TYPE_NOWIKI: result_symbol = NOWIKI_IMPLICIT_END; break;
-          case BLOCK_TYPE_IF: result_symbol = IF_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_FOLDING: result_symbol = FOLDING_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_SYNTAX: result_symbol = SYNTAX_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_WIKI: result_symbol = WIKI_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_HTML: result_symbol = HTML_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_STYLE: result_symbol = STYLE_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_LATEX: result_symbol = LATEX_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_SCALE: result_symbol = SCALE_BLOCK_IMPLICIT_END; break;
-          case BLOCK_TYPE_COLOR: result_symbol = COLOR_BLOCK_IMPLICIT_END; break;
-          default: break;
-      }
-  
-      if (result_symbol != 255 && valid_symbols[result_symbol]) {
-        scanner->depth--;
-        lexer->result_symbol = result_symbol;
-        return true;
-      }
+      scanner->depth--;
+      lexer->result_symbol = BRACKET_IMPLICIT_END;
+      return true;
     }
     if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
       scanner->in_macro = false;
@@ -526,23 +500,25 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
   }
 
-  uint8_t target_symbol = 255;
+  bool is_breakable_bracket = false;
   switch (top_type) {
-      case BLOCK_TYPE_IF: target_symbol = IF_BLOCK_START; break;
-      case BLOCK_TYPE_FOLDING: target_symbol = FOLDING_BLOCK_START; break;
-      case BLOCK_TYPE_WIKI: target_symbol = WIKI_BLOCK_START; break;
-      case BLOCK_TYPE_SCALE: target_symbol = SCALE_BLOCK_START; break;
-      case BLOCK_TYPE_COLOR: target_symbol = COLOR_BLOCK_START; break;
+      case BLOCK_TYPE_IF:
+      case BLOCK_TYPE_FOLDING:
+      case BLOCK_TYPE_WIKI:
+      case BLOCK_TYPE_SCALE:
+      case BLOCK_TYPE_COLOR:
+        is_breakable_bracket = true;
+        break;
       default: break;
   }
 
-  bool is_bracket_implicit_end = target_symbol != 255 && valid_symbols[target_symbol];
+  bool is_bracket_implicit_end = is_breakable_bracket && valid_symbols[BRACKET_IMPLICIT_END];
   bool is_macro_implicit_end = scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END];
   uint8_t heading_token = match_heading_token(lexer, is_bracket_implicit_end || is_macro_implicit_end);
   if (heading_token != NO_HEADING_TOKEN) {
     if (is_bracket_implicit_end) {
       scanner->depth--;
-      lexer->result_symbol = target_symbol + 1; // Implicit End Token
+      lexer->result_symbol = BRACKET_IMPLICIT_END;
       return true;
     }
     if (is_macro_implicit_end) {
