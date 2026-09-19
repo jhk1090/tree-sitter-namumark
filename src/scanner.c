@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <ctype.h>
+#include <wctype.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -83,7 +83,7 @@ static bool consume_language(TSLexer *lexer) {
   char buf[32] = {0};
   size_t len = 0;
 
-  while (isalnum(lexer->lookahead)) {
+  while (iswalnum(lexer->lookahead)) {
     if (len < 31) {
       buf[len++] = (char)lexer->lookahead;
     }
@@ -201,12 +201,12 @@ static bool consume_single_color(TSLexer *lexer) {
   int len = 0;
   bool all_hex = true;
 
-  while (isalnum((unsigned char)lexer->lookahead) && len < 31) {
+  while (iswalnum((unsigned char)lexer->lookahead) && len < 31) {
     char c = (char)lexer->lookahead;
     if (!is_hex_digit(c)) {
       all_hex = false;
     }
-    buf[len++] = (char)tolower((unsigned char)c);
+    buf[len++] = (char)towlower((unsigned char)c);
     lexer->advance(lexer, false);
   }
   buf[len] = '\0';
@@ -505,7 +505,6 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   }
 
   if (scanner->in_heading && (valid_symbols[BRACKET_IMPLICIT_END] || valid_symbols[MACRO_IMPLICIT_END])) {
-    fprintf(stderr, "column: %d", lexer->get_column(lexer));
     if (lexer->lookahead == '#' || lexer->lookahead == '=') {
       if (scanner->depth > 0) {
         scanner->depth--;
