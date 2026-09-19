@@ -244,7 +244,7 @@ module.exports = grammar({
       $.scale_block_inline,
       $.color_block_inline,
       $.escape,
-      $.inline_text,
+      $.text_inline,
       $.macro_inline,
       $.macro_without_args
     ),
@@ -476,7 +476,7 @@ module.exports = grammar({
       token(prec(-10, '[')),
       token(prec(-10, ']'))
     )),
-    inline_text: $ => prec(-1, choice(
+    text_inline: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n]+/,
       token(prec(-10, '#')),
       token(prec(-10, '=')),
