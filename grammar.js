@@ -1,6 +1,12 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
+const requiredArgMacros = ["anchor", "age", "dday", "youtube", "kakaotv", "vimeo", "nicovideo", "navertv", "math", "include", "ruby"]
+const optionalArgMacros = ["pagecount", "목차", "tableofcontents"]
+const macrosWithArgs = [...requiredArgMacros, ...optionalArgMacros]
+
+const macrosWithoutArgs = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
+
 module.exports = grammar({
   name: 'namumark',
 
@@ -39,6 +45,9 @@ module.exports = grammar({
     $.hidden_heading4_start,
     $.hidden_heading5_start,
     $.hidden_heading6_start,
+    $.macro_start,
+    $.macro_end,
+    $.macro_implicit_end,
   ],
 
   rules: {
@@ -136,97 +145,87 @@ module.exports = grammar({
         $.heading1, $.heading2, $.heading3, $.heading4, $.heading5, $.heading6,
         $.hidden_heading1, $.hidden_heading2, $.hidden_heading3, $.hidden_heading4, $.hidden_heading5, $.hidden_heading6,
       ),
-    heading_content: ($) => repeat1(
-      choice(
-        $.nowiki,
-        $.html_block,
-        $.scale_block,
-        $.color_block,
-        $.escape,
-        $.inline_text
-      )
-    ),
     heading1: ($) =>
       seq(
         alias($.heading1_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/={1}/, $.heading_marker),
         /\r?\n/,
       ),
     heading2: ($) =>
       seq(
         alias($.heading2_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/={2}/, $.heading_marker),
         /\r?\n/,
       ),
     heading3: ($) =>
       seq(
         alias($.heading3_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/={3}/, $.heading_marker),
         /\r?\n/,
       ),
     heading4: ($) =>
       seq(
         alias($.heading4_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/={4}/, $.heading_marker),
         /\r?\n/,
       ),
     heading5: ($) =>
       seq(
         alias($.heading5_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/={5}/, $.heading_marker),
         /\r?\n/,
       ),
     heading6: ($) =>
       seq(
         alias($.heading6_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/={6}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading1: ($) =>
       seq(
         alias($.hidden_heading1_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/#={1}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading2: ($) =>
       seq(
         alias($.hidden_heading2_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/#={2}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading3: ($) =>
       seq(
         alias($.hidden_heading3_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/#={3}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading4: ($) =>
       seq(
         alias($.hidden_heading4_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/#={4}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading5: ($) =>
       seq(
         alias($.hidden_heading5_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/#={5}/, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading6: ($) =>
       seq(
         alias($.hidden_heading6_start, $.heading_marker),
-        field("title", $.heading_content),
+        field("title", repeat1($._node_inline)),
         alias(/#={6}/, $.heading_marker),
         /\r?\n/,
       ),
@@ -245,6 +244,18 @@ module.exports = grammar({
       $.color_block,
       $.escape,
       $.text,
+      $.macro,
+      $.macro_without_args
+    ),
+    _node_inline: $ => choice(
+      $.nowiki_inline,
+      $.html_block_inline,
+      $.scale_block_inline,
+      $.color_block_inline,
+      $.escape,
+      $.inline_text,
+      $.macro_inline,
+      $.macro_without_args
     ),
 
     if_block: $ => seq(
@@ -292,6 +303,15 @@ module.exports = grammar({
         $.html_block_implicit_end
       )
     ),
+    html_block_inline: $ => seq(
+      $.html_block_start,
+      "#!html",
+      optional(field('content', $.nowiki_content_inline)),
+      choice(
+        $.bracket_end,
+        $.html_block_implicit_end
+      )
+    ),
 
     style_block: $ => seq(
       $.style_block_start,
@@ -329,12 +349,23 @@ module.exports = grammar({
 
     block_header: $ => repeat1(/[^\n\s]+/),
     block_content: $ => repeat1($._node),
+    block_content_inline: $ => repeat1($._node_inline),
 
     scale_block: $ => seq(
       $.scale_block_start,
       $.scale_size,
       /\r?\n| /,
       optional($.block_content),
+      choice(
+        $.bracket_end,
+        $.scale_block_implicit_end
+      )
+    ),
+    scale_block_inline: $ => seq(
+      $.scale_block_start,
+      $.scale_size,
+      " ",
+      optional($.block_content_inline),
       choice(
         $.bracket_end,
         $.scale_block_implicit_end
@@ -355,11 +386,54 @@ module.exports = grammar({
         $.color_block_implicit_end
       )
     ),
+    color_block_inline: $ => seq(
+      $.color_block_start,
+      field('color1', $.color_color),
+      optional(
+        seq(",", field('color2', $.color_color))
+      ),
+      " ",
+      optional($.block_content_inline),
+      choice(
+        $.bracket_end,
+        $.color_block_implicit_end
+      )
+    ),
     color_color: $ => token(/[^\n\s,]+/),
+
+    macro_without_args: $ => token(new RegExp(`\\[(${[...macrosWithArgs, ...macrosWithoutArgs].join("|")})\\]`)),
+    macro: $ => seq(
+      $.macro_start,
+      choice(...macrosWithArgs, ...macrosWithoutArgs),
+      "(",
+      choice(/[^=)]*/, prec(-10, "=")),
+      choice(
+        $.macro_end,
+        $.macro_implicit_end
+      )
+    ),
+    macro_inline: $ => seq(
+      $.macro_start,
+      choice(...macrosWithArgs, ...macrosWithoutArgs),
+      "(",
+      choice(/[^=\r\n)]*/, prec(-10, "=")),
+      choice(
+        $.macro_end,
+        $.macro_implicit_end
+      )
+    ),
 
     nowiki: $ => seq(
       $.nowiki_start,
       optional(field('content', $.nowiki_content)),
+      choice(
+        $.bracket_end,
+        $.nowiki_implicit_end
+      )
+    ),
+    nowiki_inline: $ => seq(
+      $.nowiki_start,
+      optional(field('content', $.nowiki_content_inline)),
       choice(
         $.bracket_end,
         $.nowiki_implicit_end
@@ -377,22 +451,36 @@ module.exports = grammar({
         token(prec(-10, '}'))
       )
     ),
+    nowiki_content_inline: $ => repeat1(
+      choice(
+        seq($.nowiki_start, optional($.nowiki_content_inline), choice($.bracket_end, $.nowiki_implicit_end)),
+        /[^{}\r\n]+/,
+        token(prec(-10, '=')),
+        token(prec(-10, '#')),
+        '{',
+        token(prec(-10, '}'))
+      )
+    ),
 
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^{}=#\r\n]+/,
+      /[^\[\]{}=#\r\n]+/,
       token(prec(-10, '=')),
       token(prec(-10, '#')),
       /\r?\n/,
       '{',
-      token(prec(-10, '}'))
+      token(prec(-10, '}')),
+      token(prec(-10, '[')),
+      token(prec(-10, ']'))
     )),
     inline_text: $ => prec(-1, choice(
-      /[^{}=#\r\n]+/,
+      /[^\[\]{}=#\r\n]+/,
       token(prec(-10, '#')),
       token(prec(-10, '=')),
       '{',
       token(prec(-10, '}')),
+      token(prec(-10, '[')),
+      token(prec(-10, ']'))
     )),
   }
 });

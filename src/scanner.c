@@ -43,6 +43,9 @@ enum TokenType {
   HIDDEN_HEADING4_START,
   HIDDEN_HEADING5_START,
   HIDDEN_HEADING6_START,
+  MACRO_START,
+  MACRO_END,
+  MACRO_IMPLICIT_END,
 };
 
 enum BlockType {
@@ -59,6 +62,7 @@ enum BlockType {
 };
 
 typedef struct {
+  bool in_macro;
   uint32_t depth;
   uint8_t stack[256];
 } Scanner;
@@ -325,6 +329,94 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
   return NO_HEADING_TOKEN;
 }
 
+// 1. 유효한 매크로 이름 문자(영문, 숫자, 한글, 언더스코어 등) 판별
+static bool is_macro_char(int32_t ch) {
+  // ASCII 영문자 / 숫자 / 언더스코어
+  if ((ch >= 'a' && ch <= 'z') || 
+      (ch >= 'A' && ch <= 'Z') || 
+      (ch >= '0' && ch <= '9') || 
+      ch == '_') {
+    return true;
+  }
+
+  // 완성형 한글 (U+AC00 ~ U+D7A3)
+  if (ch >= 0xAC00 && ch <= 0xD7A3) return true;
+
+  // 한글 자모 (U+1100 ~ U+11FF, U+3131 ~ U+318E)
+  if ((ch >= 0x1100 && ch <= 0x11FF) || 
+      (ch >= 0x3131 && ch <= 0x318E)) {
+    return true;
+  }
+
+  return false;
+}
+
+// 2. int32_t 유니코드를 UTF-8 바이트 시퀀스로 인코딩하는 헬퍼 함수
+static size_t encode_utf8(int32_t ch, char *buf) {
+  if (ch < 0x80) {
+    buf[0] = (char)ch;
+    return 1;
+  } else if (ch < 0x800) {
+    buf[0] = (char)(0xC0 | (ch >> 6));
+    buf[1] = (char)(0x80 | (ch & 0x3F));
+    return 2;
+  } else if (ch < 0x10000) {
+    buf[0] = (char)(0xE0 | (ch >> 12));
+    buf[1] = (char)(0x80 | ((ch >> 6) & 0x3F));
+    buf[2] = (char)(0x80 | (ch & 0x3F));
+    return 3;
+  } else if (ch < 0x110000) {
+    buf[0] = (char)(0xF0 | (ch >> 18));
+    buf[1] = (char)(0x80 | ((ch >> 12) & 0x3F));
+    buf[2] = (char)(0x80 | ((ch >> 6) & 0x3F));
+    buf[3] = (char)(0x80 | (ch & 0x3F));
+    return 4;
+  }
+  return 0;
+}
+
+static bool consume_macro(TSLexer *lexer) {
+  // UTF-8 한글 1글자는 3바이트를 차지하므로, 여유 있게 버퍼 크기를 잡습니다.
+  char buf[128];
+  size_t len = 0;
+
+  while (is_macro_char(lexer->lookahead)) {
+    int32_t ch = lexer->lookahead;
+
+    // 영문 대문자만 소문자로 변환 (한글은 변환하지 않음)
+    if (ch >= 'A' && ch <= 'Z') {
+      ch = ch + ('a' - 'A');
+    }
+
+    // UTF-8 인코딩 시 버퍼 범위를 넘어서는지 확인 (여유 바이트 4바이트)
+    if (len + 4 >= sizeof(buf) - 1) break;
+
+    size_t encoded_bytes = encode_utf8(ch, &buf[len]);
+    if (encoded_bytes == 0) break;
+
+    len += encoded_bytes;
+    lexer->advance(lexer, false);
+  }
+  buf[len] = '\0';
+
+  if (len == 0) return false;
+
+  // 매크로 이름 목록 매칭
+  static const char *const VALID_NAMES[] = {
+    "anchor", "age", "dday", "youtube", "kakaotv", "vimeo", 
+    "nicovideo", "navertv", "math", "include", "ruby", "pagecount", 
+    "목차", "tableofcontents", "clearfix", "date", "datetime", 
+    "각주", "footnote", "br"
+  };
+
+  size_t count = sizeof(VALID_NAMES) / sizeof(VALID_NAMES[0]);
+  for (size_t i = 0; i < count; i++) {
+    if (strcmp(buf, VALID_NAMES[i]) == 0) return true;
+  }
+
+  return false;
+}
+
 
 // --- Lifecycle 함수들 ---
 
@@ -340,21 +432,29 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   Scanner *scanner = (Scanner *)payload;
   if (scanner->depth > 255) return 0;
 
-  buffer[0] = (char)scanner->depth;
+  buffer[0] = (char)scanner->in_macro;
+  buffer[1] = (char)scanner->depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    buffer[i + 1] = (char)scanner->stack[i];
+    buffer[2 + i] = (char)scanner->stack[i];
   }
-  return scanner->depth + 1;
+  return scanner->depth + 2;
 }
 
 void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
   Scanner *scanner = (Scanner *)payload;
+  scanner->in_macro = false;
   scanner->depth = 0;
-  if (length == 0 || buffer == NULL) return;
 
-  scanner->depth = (uint8_t)buffer[0];
+  if (length < 2 || buffer == NULL) return;
+
+  scanner->in_macro = (bool)buffer[0];
+  uint8_t saved_depth = (uint8_t)buffer[1];
+
+  if (length < 2 + saved_depth) return;
+
+  scanner->depth = saved_depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    scanner->stack[i] = (uint8_t)buffer[i + 1];
+    scanner->stack[i] = (uint8_t)buffer[2 + i];
   }
 }
 
@@ -364,25 +464,32 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
 
-  if (lexer->eof(lexer) && scanner->depth > 0) {
-    uint8_t result_symbol = 255;
-    switch (top_type) {
-        case BLOCK_TYPE_NOWIKI: result_symbol = NOWIKI_IMPLICIT_END; break;
-        case BLOCK_TYPE_IF: result_symbol = IF_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_FOLDING: result_symbol = FOLDING_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_SYNTAX: result_symbol = SYNTAX_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_WIKI: result_symbol = WIKI_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_HTML: result_symbol = HTML_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_STYLE: result_symbol = STYLE_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_LATEX: result_symbol = LATEX_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_SCALE: result_symbol = SCALE_BLOCK_IMPLICIT_END; break;
-        case BLOCK_TYPE_COLOR: result_symbol = COLOR_BLOCK_IMPLICIT_END; break;
-        default: break;
+  if (lexer->eof(lexer)) {
+    if (scanner->depth > 0) {
+      uint8_t result_symbol = 255;
+      switch (top_type) {
+          case BLOCK_TYPE_NOWIKI: result_symbol = NOWIKI_IMPLICIT_END; break;
+          case BLOCK_TYPE_IF: result_symbol = IF_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_FOLDING: result_symbol = FOLDING_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_SYNTAX: result_symbol = SYNTAX_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_WIKI: result_symbol = WIKI_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_HTML: result_symbol = HTML_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_STYLE: result_symbol = STYLE_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_LATEX: result_symbol = LATEX_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_SCALE: result_symbol = SCALE_BLOCK_IMPLICIT_END; break;
+          case BLOCK_TYPE_COLOR: result_symbol = COLOR_BLOCK_IMPLICIT_END; break;
+          default: break;
+      }
+  
+      if (result_symbol != 255 && valid_symbols[result_symbol]) {
+        scanner->depth--;
+        lexer->result_symbol = result_symbol;
+        return true;
+      }
     }
-
-    if (result_symbol != 255 && valid_symbols[result_symbol]) {
-      scanner->depth--;
-      lexer->result_symbol = result_symbol;
+    if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
+      scanner->in_macro = false;
+      lexer->result_symbol = MACRO_IMPLICIT_END;
       return true;
     }
   }
@@ -409,6 +516,16 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
   }
 
+  if (lexer->lookahead == ')' && scanner->in_macro && valid_symbols[MACRO_END]) {
+    lexer->advance(lexer, false);
+    if (lexer->lookahead == ']') {
+      lexer->advance(lexer, false);
+      scanner->in_macro = false;
+      lexer->result_symbol = MACRO_END;
+      return true;
+    }
+  }
+
   uint8_t target_symbol = 255;
   switch (top_type) {
       case BLOCK_TYPE_IF: target_symbol = IF_BLOCK_START; break;
@@ -418,11 +535,19 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       case BLOCK_TYPE_COLOR: target_symbol = COLOR_BLOCK_START; break;
       default: break;
   }
-  uint8_t heading_token = match_heading_token(lexer, target_symbol != 255 && valid_symbols[target_symbol]);
+
+  bool is_bracket_implicit_end = target_symbol != 255 && valid_symbols[target_symbol];
+  bool is_macro_implicit_end = scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END];
+  uint8_t heading_token = match_heading_token(lexer, is_bracket_implicit_end || is_macro_implicit_end);
   if (heading_token != NO_HEADING_TOKEN) {
-    if (target_symbol != 255 && valid_symbols[target_symbol]) {
+    if (is_bracket_implicit_end) {
       scanner->depth--;
       lexer->result_symbol = target_symbol + 1; // Implicit End Token
+      return true;
+    }
+    if (is_macro_implicit_end) {
+      scanner->in_macro = false;
+      lexer->result_symbol = MACRO_IMPLICIT_END;
       return true;
     }
     if (valid_symbols[heading_token]) {
@@ -493,6 +618,18 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       // 4. Default Fallback -> NOWIKI
       if (valid_symbols[NOWIKI_START]) {
         return register_token(lexer, scanner, NOWIKI_START, BLOCK_TYPE_NOWIKI);
+      }
+    }
+  }
+
+  if (lexer->lookahead == '[' && valid_symbols[MACRO_START]) {
+    lexer->advance(lexer, false);
+    lexer->mark_end(lexer);
+    if (consume_macro(lexer)) {
+      if (lexer->lookahead == '(') {
+        scanner->in_macro = true;
+        lexer->result_symbol = MACRO_START;
+        return true;
       }
     }
   }
