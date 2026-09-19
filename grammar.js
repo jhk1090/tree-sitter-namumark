@@ -3,9 +3,7 @@
 
 const requiredArgMacros = ["anchor", "age", "dday", "youtube", "kakaotv", "vimeo", "nicovideo", "navertv", "math", "include", "ruby"]
 const optionalArgMacros = ["pagecount", "목차", "tableofcontents"]
-const macrosWithArgs = [...requiredArgMacros, ...optionalArgMacros]
-
-const macrosWithoutArgs = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
+const noArgMacros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
 
 module.exports = grammar({
   name: 'namumark',
@@ -392,10 +390,19 @@ module.exports = grammar({
     ),
     color_color: $ => token(/[^\n\s,]+/),
 
-    macro_without_args: $ => token(new RegExp(`\\[(${[...macrosWithArgs, ...macrosWithoutArgs].join("|")})\\]`)),
+    required_arg_macro_name: $ => choice(...requiredArgMacros),
+    optional_arg_macro_name: $ => choice(...optionalArgMacros),
+    no_arg_macro_name: $ => choice(...noArgMacros),
+    _macro_name: $ => choice(
+      $.required_arg_macro_name,
+      $.optional_arg_macro_name,
+      $.no_arg_macro_name
+    ),
+
+    macro_without_args: $ => token(new RegExp(`\\[(${[...requiredArgMacros, ...optionalArgMacros, ...noArgMacros].join("|")})\\]`)),
     macro: $ => seq(
       $.macro_start,
-      choice(...macrosWithArgs, ...macrosWithoutArgs),
+      $._macro_name,
       "(",
       repeat(
         choice(
@@ -411,7 +418,7 @@ module.exports = grammar({
     ),
     macro_inline: $ => seq(
       $.macro_start,
-      choice(...macrosWithArgs, ...macrosWithoutArgs),
+      $._macro_name,
       "(",
       repeat(
         choice(
