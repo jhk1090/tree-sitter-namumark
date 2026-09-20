@@ -350,12 +350,13 @@ module.exports = grammar({
       field("lang", $.wiki_lang_attr)
     ),
 
-    // 끝나는 따옴표가 있어야지만 유효 (TODO: value field 나오게금 수정)
-    wiki_style_attr: ($) => seq('style="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
-    wiki_dark_style_attr: ($) => seq('dark-style="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
-    wiki_tag_attr: ($) => seq('tag="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
-    wiki_class_attr: ($) => seq('class="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
-    wiki_lang_attr: ($) => seq('lang="', optional(field("value", /[^\r\n"]+/)), optional(field("end", '"'))),
+    // 끝나는 따옴표가 있어야지만 유효
+    wiki_attr_value: ($) => token(prec(1, /[^\r\n"]+/)),
+    wiki_style_attr: ($) => seq('style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
+    wiki_dark_style_attr: ($) => seq('dark-style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
+    wiki_tag_attr: ($) => seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
+    wiki_class_attr: ($) => seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
+    wiki_lang_attr: ($) => seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
 
     block_header: $ => repeat1(/[^\n\s]+/),
     block_content: $ => repeat1($._node),
