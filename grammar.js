@@ -12,14 +12,22 @@ module.exports = grammar({
     $.comment,
     $.nowiki_start,
     $.if_block_start,
+    $.if_fallback_block_start,
     $.folding_block_start,
+    $.folding_fallback_block_start,
     $.syntax_block_start,
+    $.syntax_fallback_block_start,
     $.wiki_block_start,
+    $.wiki_fallback_block_start,
     $.html_block_start,
     $.style_block_start,
+    $.style_fallback_block_start,
     $.latex_block_start,
+    $.latex_fallback_block_start,
     $.scale_block_start,
+    $.scale_fallback_block_start,
     $.color_block_start,
+    $.color_fallback_block_start,
     $.bracket_end,
     $.bracket_implicit_end,
     $.heading1_start,
@@ -224,14 +232,22 @@ module.exports = grammar({
       $.comment,
       $.nowiki,
       $.if_block,
+      $.if_fallback_block,
       $.folding_block,
+      $.folding_fallback_block,
       $.syntax_block,
+      $.syntax_fallback_block,
       $.wiki_block,
+      $.wiki_fallback_block,
       $.html_block,
       $.style_block,
+      $.style_fallback_block,
       $.latex_block,
+      $.latex_fallback_block,
       $.scale_block,
+      $.scale_fallback_block,
       $.color_block,
+      $.color_fallback_block,
       $.escape,
       $.text,
       $.macro,
@@ -241,11 +257,18 @@ module.exports = grammar({
       $.nowiki_inline,
       $.html_block_inline,
       $.scale_block_inline,
+      $.scale_fallback_block_inline,
       $.color_block_inline,
+      $.color_fallback_block_inline,
       $.escape,
       $.text_inline,
       $.macro_inline,
       $.macro_without_args
+    ),
+
+    _block_end: $ => choice(
+      $.bracket_end,
+      $.bracket_implicit_end
     ),
 
     if_block: $ => seq(
@@ -254,10 +277,7 @@ module.exports = grammar({
       optional(field('expression', $.block_header)),
       /\r?\n/,
       optional($.block_content),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
 
     folding_block: $ => seq(
@@ -266,10 +286,7 @@ module.exports = grammar({
       optional(field('text', $.block_header)),
       /\r?\n/,
       optional($.block_content),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
 
     syntax_block: $ => seq(
@@ -278,29 +295,20 @@ module.exports = grammar({
       field('language', $.block_header),
       /\r?\n/,
       optional(field('content', $.nowiki_content)),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
 
     html_block: $ => seq(
       $.html_block_start,
       "#!html",
       optional(field('content', $.nowiki_content)),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
     html_block_inline: $ => seq(
       $.html_block_start,
       "#!html",
       optional(field('content', $.nowiki_content_inline)),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
 
     style_block: $ => seq(
@@ -308,10 +316,7 @@ module.exports = grammar({
       "#!style",
       /\r?\n/,
       optional(field('content', $.nowiki_content)),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
 
     latex_block: $ => seq(
@@ -319,10 +324,7 @@ module.exports = grammar({
       "#!latex",
       /\r?\n/,
       optional(field('content', $.nowiki_content)),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
 
     wiki_block: $ => seq(
@@ -331,10 +333,7 @@ module.exports = grammar({
       optional($.wiki_block_header),
       /\r?\n/,
       optional($.block_content),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
@@ -367,20 +366,14 @@ module.exports = grammar({
       field("size", $.scale_size),
       /\r?\n| /,
       optional($.block_content),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
     scale_block_inline: $ => seq(
       $.scale_block_start,
       field("size", $.scale_size),
       " ",
       optional($.block_content_inline),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
     scale_size: $ => token(/[+-][1-5]/),
 
@@ -392,10 +385,7 @@ module.exports = grammar({
       ),
       /\r?\n| /,
       optional($.block_content),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
     color_block_inline: $ => seq(
       $.color_block_start,
@@ -405,10 +395,7 @@ module.exports = grammar({
       ),
       " ",
       optional($.block_content_inline),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
     color_color: $ => token(/[^\n\s,]+/),
 
@@ -455,37 +442,83 @@ module.exports = grammar({
       )
     ),
 
+
+    if_fallback_block: $ => seq(
+      $.if_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    folding_fallback_block: $ => seq(
+      $.folding_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    syntax_fallback_block: $ => seq(
+      $.syntax_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    wiki_fallback_block: $ => seq(
+      $.wiki_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    style_fallback_block: $ => seq(
+      $.style_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    latex_fallback_block: $ => seq(
+      $.latex_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    scale_fallback_block: $ => seq(
+      $.scale_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    scale_fallback_block_inline: $ => seq(
+      $.scale_fallback_block_start,
+      optional(field('content', $.nowiki_content_inline)),
+      $._block_end
+    ),
+    color_fallback_block: $ => seq(
+      $.color_fallback_block_start,
+      optional(field('content', $.nowiki_content)),
+      $._block_end
+    ),
+    color_fallback_block_inline: $ => seq(
+      $.color_fallback_block_start,
+      optional(field('content', $.nowiki_content_inline)),
+      $._block_end
+    ),
+
     nowiki: $ => seq(
       $.nowiki_start,
       optional(field('content', $.nowiki_content)),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
     nowiki_inline: $ => seq(
       $.nowiki_start,
       optional(field('content', $.nowiki_content_inline)),
-      choice(
-        $.bracket_end,
-        $.bracket_implicit_end
-      )
+      $._block_end
     ),
 
     nowiki_content: $ => repeat1(
       choice(
-        seq($.nowiki_start, optional($.nowiki_content), choice($.bracket_end, $.bracket_implicit_end)),
-        /[^{}\r\n]+/,
+        seq($.nowiki_start, optional($.nowiki_content), $._block_end),
+        /[^{}=#\r\n]+/,
         token(prec(-10, '=')),
         token(prec(-10, '#')),
-        /\r?\n/,
+        token(prec(-10, /\r?\n/)),
         '{',
         token(prec(-10, '}'))
       )
     ),
     nowiki_content_inline: $ => repeat1(
       choice(
-        seq($.nowiki_start, optional($.nowiki_content_inline), choice($.bracket_end, $.bracket_implicit_end)),
+        seq($.nowiki_start, optional($.nowiki_content_inline), $._block_end),
         /[^{}=#\r\n]+/,
         token(prec(-10, '=')),
         token(prec(-10, '#')),

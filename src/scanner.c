@@ -12,14 +12,22 @@ enum TokenType {
   COMMENT,
   NOWIKI_START,
   IF_BLOCK_START,
+  IF_FALLBACK_BLOCK_START,
   FOLDING_BLOCK_START,
+  FOLDING_FALLBACK_BLOCK_START,
   SYNTAX_BLOCK_START,
+  SYNTAX_FALLBACK_BLOCK_START,
   WIKI_BLOCK_START,
+  WIKI_FALLBACK_BLOCK_START,
   HTML_BLOCK_START,
   STYLE_BLOCK_START,
+  STYLE_FALLBACK_BLOCK_START,
   LATEX_BLOCK_START,
+  LATEX_FALLBACK_BLOCK_START,
   SCALE_BLOCK_START,
+  SCALE_FALLBACK_BLOCK_START,
   COLOR_BLOCK_START,
+  COLOR_FALLBACK_BLOCK_START,
   BRACKET_END,
   BRACKET_IMPLICIT_END,
   HEADING1_START,
@@ -123,13 +131,9 @@ static bool register_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE,
 }
 
 static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE, bool is_header_needed) {
-  uint8_t token = TOKEN_TYPE;
-  uint8_t block = BLOCK_TYPE;
-
   if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
     if (lexer->lookahead != ' ') {
-      token = NOWIKI_START;
-      block = BLOCK_TYPE_NOWIKI;
+      return register_token(lexer, scanner, TOKEN_TYPE + 1, BLOCK_TYPE_NOWIKI);
     }
 
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
@@ -137,63 +141,60 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_
     }
   } else {
     if (is_header_needed) {
-      token = NOWIKI_START;
-      block = BLOCK_TYPE_NOWIKI;
+      return register_token(lexer, scanner, TOKEN_TYPE + 1, BLOCK_TYPE_NOWIKI);
     }
   }
 
   if (!consume_newline(lexer)) {
-    token = NOWIKI_START;
-    block = BLOCK_TYPE_NOWIKI;
+    return register_token(lexer, scanner, TOKEN_TYPE + 1, BLOCK_TYPE_NOWIKI);
   }
 
-  return register_token(lexer, scanner, token, block);
+  return register_token(lexer, scanner, TOKEN_TYPE, BLOCK_TYPE);
 }
 
-typedef struct {
-  uint8_t token;
-  uint8_t block;
-} ConsumeResult;
-
-static ConsumeResult consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
+static bool consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
   if (lexer->lookahead != ' ') {
-    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+    return register_token(lexer, scanner, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
 
   lexer->advance(lexer, false);
 
   if (!consume_language(lexer)) {
-    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+    return register_token(lexer, scanner, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
   
   if (!consume_newline(lexer)) {
-    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+    return register_token(lexer, scanner, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
 
-  return (ConsumeResult){.token = SYNTAX_BLOCK_START, .block = BLOCK_TYPE_SYNTAX};
+  return register_token(lexer, scanner, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
 }
 
-static ConsumeResult consume_scale_block(TSLexer *lexer, Scanner *scanner) {
+static bool consume_scale_block(TSLexer *lexer, Scanner *scanner) {
   if (lexer->lookahead != '+' && lexer->lookahead != '-') {
-    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+    return register_token(lexer, scanner, NOWIKI_START, BLOCK_TYPE_NOWIKI);
   }
 
   lexer->advance(lexer, false);
 
+  if (!iswdigit(lexer->lookahead)) {
+    return register_token(lexer, scanner, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
+  }
+
   if (!(lexer->lookahead >= '1' && lexer->lookahead <= '5')) {
-    return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+    return register_token(lexer, scanner, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
 
   lexer->advance(lexer, false);
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+      return register_token(lexer, scanner, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
     }
     lexer->advance(lexer, false);
   }
 
-  return (ConsumeResult){.token = SCALE_BLOCK_START, .block = BLOCK_TYPE_SCALE};
+  return register_token(lexer, scanner, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
 }
 
 static bool is_hex_digit(char c) {
@@ -236,26 +237,26 @@ static bool consume_single_color(TSLexer *lexer) {
   return false;
 }
 
-static ConsumeResult consume_color_block(TSLexer *lexer, Scanner *scanner) {
-  if (!consume_single_color(lexer)) return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+static bool consume_color_block(TSLexer *lexer, Scanner *scanner) {
+  if (!consume_single_color(lexer)) return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
 
   if (lexer->lookahead == ',') {
     lexer->advance(lexer, false);
     if (lexer->lookahead != '#') {
-      return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+      return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
     }
     lexer->advance(lexer, false);
-    if (!consume_single_color(lexer)) return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+    if (!consume_single_color(lexer)) return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+      return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
     }
     lexer->advance(lexer, false);
   }
 
-  return (ConsumeResult){.token = COLOR_BLOCK_START, .block = BLOCK_TYPE_COLOR};
+  return register_token(lexer, scanner, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
 }
 
 static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
@@ -586,15 +587,13 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           }
           if (consume_string(lexer, "s")) {
             if (valid_symbols[SYNTAX_BLOCK_START] && consume_string(lexer, "yntax")) {
-              ConsumeResult result = consume_syntax_block(lexer, scanner);
-              return register_token(lexer, scanner, result.token, result.block);
+              return consume_syntax_block(lexer, scanner);
             }
             if (valid_symbols[STYLE_BLOCK_START] && consume_string(lexer, "tyle")) {
-              ConsumeResult result = (ConsumeResult){.token = STYLE_BLOCK_START, .block = BLOCK_TYPE_STYLE};
               if (!consume_newline(lexer)) {
-                result = (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
+                return register_token(lexer, scanner, STYLE_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
               }
-              return register_token(lexer, scanner, result.token, result.block);
+              return register_token(lexer, scanner, STYLE_BLOCK_START, BLOCK_TYPE_STYLE);
             }
           }
           if (valid_symbols[WIKI_BLOCK_START] && consume_string(lexer, "wiki")) {
@@ -604,24 +603,21 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
             return register_token(lexer, scanner, HTML_BLOCK_START, BLOCK_TYPE_HTML);
           }
           if (valid_symbols[LATEX_BLOCK_START] && consume_string(lexer, "latex")) {
-            ConsumeResult result = (ConsumeResult){.token = LATEX_BLOCK_START, .block = BLOCK_TYPE_LATEX};
             if (!consume_newline(lexer)) {
-              result = (ConsumeResult){.token = NOWIKI_START, .block = BLOCK_TYPE_NOWIKI};
-            }
-            return register_token(lexer, scanner, result.token, result.block);
+                return register_token(lexer, scanner, LATEX_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
+              }
+              return register_token(lexer, scanner, LATEX_BLOCK_START, BLOCK_TYPE_LATEX);
           }
         } 
         // 2-2. '#!'가 아니고 바로 색상명이 시작하는 케이스 (COLOR_BLOCK_START)
         else if (valid_symbols[COLOR_BLOCK_START]) {
-          ConsumeResult result = consume_color_block(lexer, scanner);
-          return register_token(lexer, scanner, result.token, result.block);
+          return consume_color_block(lexer, scanner);
         }
       }
 
       // 글자 크기 블록 ({{{+1 ...}}}, {{{-2 ...}}})
       if (valid_symbols[SCALE_BLOCK_START]) {
-        ConsumeResult result = consume_scale_block(lexer, scanner);
-        return register_token(lexer, scanner, result.token, result.block);
+        return consume_scale_block(lexer, scanner);
       }
 
       // 4. Default Fallback -> NOWIKI
