@@ -34,6 +34,7 @@ module.exports = grammar({
     $.hidden_heading4_start,
     $.hidden_heading5_start,
     $.hidden_heading6_start,
+    $.heading_end,
     $.macro_start,
     $.macro_end,
     $.macro_implicit_end,
@@ -138,84 +139,84 @@ module.exports = grammar({
       seq(
         alias($.heading1_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/={1}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     heading2: ($) =>
       seq(
         alias($.heading2_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/={2}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     heading3: ($) =>
       seq(
         alias($.heading3_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/={3}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     heading4: ($) =>
       seq(
         alias($.heading4_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/={4}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     heading5: ($) =>
       seq(
         alias($.heading5_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/={5}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     heading6: ($) =>
       seq(
         alias($.heading6_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/={6}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading1: ($) =>
       seq(
         alias($.hidden_heading1_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/#={1}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading2: ($) =>
       seq(
         alias($.hidden_heading2_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/#={2}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading3: ($) =>
       seq(
         alias($.hidden_heading3_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/#={3}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading4: ($) =>
       seq(
         alias($.hidden_heading4_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/#={4}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading5: ($) =>
       seq(
         alias($.hidden_heading5_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/#={5}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
     hidden_heading6: ($) =>
       seq(
         alias($.hidden_heading6_start, $.heading_marker),
         field("title", repeat1($._node_inline)),
-        alias(/#={6}/, $.heading_marker),
+        alias($.heading_end, $.heading_marker),
         /\r?\n/,
       ),
 
