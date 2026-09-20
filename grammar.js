@@ -251,7 +251,7 @@ module.exports = grammar({
     if_block: $ => seq(
       $.if_block_start,
       "#!if",
-      optional($.block_header),
+      optional(field('expression', $.block_header)),
       /\r?\n/,
       optional($.block_content),
       choice(
@@ -263,7 +263,7 @@ module.exports = grammar({
     folding_block: $ => seq(
       $.folding_block_start,
       "#!folding",
-      optional($.block_header),
+      optional(field('text', $.block_header)),
       /\r?\n/,
       optional($.block_content),
       choice(
@@ -275,7 +275,7 @@ module.exports = grammar({
     syntax_block: $ => seq(
       $.syntax_block_start,
       "#!syntax",
-      $.block_header,
+      field('language', $.block_header),
       /\r?\n/,
       optional(field('content', $.nowiki_content)),
       choice(
@@ -364,7 +364,7 @@ module.exports = grammar({
 
     scale_block: $ => seq(
       $.scale_block_start,
-      $.scale_size,
+      field("size", $.scale_size),
       /\r?\n| /,
       optional($.block_content),
       choice(
@@ -374,7 +374,7 @@ module.exports = grammar({
     ),
     scale_block_inline: $ => seq(
       $.scale_block_start,
-      $.scale_size,
+      field("size", $.scale_size),
       " ",
       optional($.block_content_inline),
       choice(

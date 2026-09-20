@@ -122,9 +122,10 @@ static bool register_token(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE,
   return true;
 }
 
-static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE) {
+static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE, bool is_header_needed) {
   uint8_t token = TOKEN_TYPE;
   uint8_t block = BLOCK_TYPE;
+
   if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
     if (lexer->lookahead != ' ') {
       token = NOWIKI_START;
@@ -133,6 +134,11 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_
 
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
       lexer->advance(lexer, false);
+    }
+  } else {
+    if (is_header_needed) {
+      token = NOWIKI_START;
+      block = BLOCK_TYPE_NOWIKI;
     }
   }
 
@@ -573,10 +579,10 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
           lexer->advance(lexer, false); // '!' 소비
 
           if (valid_symbols[IF_BLOCK_START] && consume_string(lexer, "if")) {
-            return consume_depth_block(lexer, scanner, IF_BLOCK_START, BLOCK_TYPE_IF);
+            return consume_depth_block(lexer, scanner, IF_BLOCK_START, BLOCK_TYPE_IF, true);
           }
           if (valid_symbols[FOLDING_BLOCK_START] && consume_string(lexer, "folding")) {
-            return consume_depth_block(lexer, scanner, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING);
+            return consume_depth_block(lexer, scanner, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING, false);
           }
           if (consume_string(lexer, "s")) {
             if (valid_symbols[SYNTAX_BLOCK_START] && consume_string(lexer, "yntax")) {
@@ -592,7 +598,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
             }
           }
           if (valid_symbols[WIKI_BLOCK_START] && consume_string(lexer, "wiki")) {
-            return consume_depth_block(lexer, scanner, WIKI_BLOCK_START, BLOCK_TYPE_WIKI);
+            return consume_depth_block(lexer, scanner, WIKI_BLOCK_START, BLOCK_TYPE_WIKI, false);
           }
           if (valid_symbols[HTML_BLOCK_START] && consume_string(lexer, "html")) {
             return register_token(lexer, scanner, HTML_BLOCK_START, BLOCK_TYPE_HTML);
