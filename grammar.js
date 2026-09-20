@@ -350,7 +350,7 @@ module.exports = grammar({
     ),
 
     // 끝나는 따옴표가 있어야지만 유효
-    wiki_attr_value: ($) => token(prec(1, /[^\r\n"]+/)),
+    wiki_attr_value: ($) => repeat1(prec(1, token(/[^\r\n"]+/))),
     wiki_style_attr: ($) => seq('style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
     wiki_dark_style_attr: ($) => seq('dark-style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
     wiki_tag_attr: ($) => seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
@@ -512,7 +512,7 @@ module.exports = grammar({
         token(prec(-10, '=')),
         token(prec(-10, '#')),
         token(prec(-10, /\r?\n/)),
-        '{',
+        token(prec(-10, '{')),
         token(prec(-10, '}'))
       )
     ),
@@ -522,7 +522,7 @@ module.exports = grammar({
         /[^{}=#\r\n]+/,
         token(prec(-10, '=')),
         token(prec(-10, '#')),
-        '{',
+        token(prec(-10, '{')),
         token(prec(-10, '}'))
       )
     ),
@@ -532,8 +532,8 @@ module.exports = grammar({
       /[^\[\]{}=#\r\n]+/,
       token(prec(-10, '=')),
       token(prec(-10, '#')),
-      /\r?\n/,
-      '{',
+      token(prec(-10, /\r?\n/)),
+      token(prec(-10, '{')),
       token(prec(-10, '}')),
       token(prec(-10, '[')),
       token(prec(-10, ']'))
@@ -542,7 +542,7 @@ module.exports = grammar({
       /[^\[\]{}=#\r\n]+/,
       token(prec(-10, '#')),
       token(prec(-10, '=')),
-      '{',
+      token(prec(-10, '{')),
       token(prec(-10, '}')),
       token(prec(-10, '[')),
       token(prec(-10, ']'))
