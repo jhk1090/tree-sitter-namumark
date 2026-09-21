@@ -420,7 +420,8 @@ module.exports = grammar({
       "(",
       repeat(
         choice(
-          /[^=)}]+/,
+          /[^=)}\\]+/,
+          $.escape,
           prec(-10, token('=')),
           prec(-10, token(')')),
           prec(-10, token('}'))
@@ -437,7 +438,8 @@ module.exports = grammar({
       "(",
       repeat(
         choice(
-          /[^=\r\n)]+/,
+          /[^=\r\n)\\]+/,
+          $.escape,
           prec(-10, token('=')),
           prec(-10, token(')'))
         )
@@ -469,14 +471,16 @@ module.exports = grammar({
     link_pipe: $ => prec(2, token("|")),
     link_link: $ => repeat1(
       choice(
-        /[^\]\|\}\r\n]+/,
+        /[^\]\|\}\r\n\\]+/,
+        $.escape,
         prec(-10, token(']')),
         prec(-10, token('}'))
       )
     ),
     link_link_inline: $ => repeat1(
       choice(
-        /[^\]\|\}\=\r\n]+/,
+        /[^\]\|\}\=\r\n\\]+/,
+        $.escape,
         prec(-10, token(']')),
         prec(-10, token('}')),
         prec(-10, token('='))
@@ -571,23 +575,25 @@ module.exports = grammar({
 
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n]+/,
+      /[^\[\]{}=#\r\n\\]+/,
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(-10, token(/\r?\n/)),
       prec(-10, token('{')),
       prec(-10, token('}')),
       prec(-10, token('[')),
-      prec(-10, token(']'))
+      prec(-10, token(']')),
+      prec(-10, token('\\')),
     )),
     text_inline: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n]+/,
+      /[^\[\]{}=#\r\n\\]+/,
       prec(-10, token('#')),
       prec(-10, token('=')),
       prec(-10, token('{')),
       prec(-10, token('}')),
       prec(-10, token('[')),
-      prec(-10, token(']'))
+      prec(-10, token(']')),
+      prec(-10, token('\\')),
     )),
   }
 });
