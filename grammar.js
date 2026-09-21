@@ -415,9 +415,10 @@ module.exports = grammar({
       "(",
       repeat(
         choice(
-          /[^=)]/,
+          /[^=)}]/,
           prec(-10, token('=')),
-          prec(-10, token(')'))
+          prec(-10, token(')')),
+          prec(-10, token('}'))
         )
       ),
       choice(

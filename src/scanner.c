@@ -491,14 +491,19 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   }
 
   // 1. END 토큰 매칭 (}}})
-  if (scanner->depth > 0) {
-    if (valid_symbols[BRACKET_END]) {
-      if (lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
-        lexer->mark_end(lexer);
-        scanner->depth--;
-        lexer->result_symbol = BRACKET_END;
+  if (lexer->lookahead == '}' && scanner->depth > 0) {
+    lexer->mark_end(lexer);
+    if (consume_string(lexer, "}}}")) {
+      if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
+        scanner->in_macro = false;
+        lexer->result_symbol = MACRO_IMPLICIT_END;
         return true;
       }
+  
+      lexer->mark_end(lexer);
+      scanner->depth--;
+      lexer->result_symbol = BRACKET_END;
+      return true;
     }
   }
 
