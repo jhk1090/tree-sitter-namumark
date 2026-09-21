@@ -46,6 +46,9 @@ module.exports = grammar({
     $.macro_start,
     $.macro_end,
     $.macro_implicit_end,
+    $.link_start,
+    $.link_end,
+    $.link_implicit_end
   ],
 
   rules: {
@@ -251,7 +254,8 @@ module.exports = grammar({
       $.escape,
       $.text,
       $.macro,
-      $.macro_without_args
+      $.macro_without_args,
+      $.link
     ),
     _node_inline: $ => choice(
       $.nowiki_inline,
@@ -415,7 +419,7 @@ module.exports = grammar({
       "(",
       repeat(
         choice(
-          /[^=)}]/,
+          /[^=)}]+/,
           prec(-10, token('=')),
           prec(-10, token(')')),
           prec(-10, token('}'))
@@ -432,7 +436,7 @@ module.exports = grammar({
       "(",
       repeat(
         choice(
-          /[^=\r\n)]/,
+          /[^=\r\n)]+/,
           prec(-10, token('=')),
           prec(-10, token(')'))
         )
@@ -442,7 +446,18 @@ module.exports = grammar({
         $.macro_implicit_end
       )
     ),
-
+    
+    link: $ => seq(
+      $.link_start,
+      optional(repeat1(choice(/[^\]\|\}\r\n]+/, prec(-10, token('}'))))),
+      optional(seq($.link_pipe, optional(field('display', $.link_display)))),
+      choice(
+        $.link_end,
+        $.link_implicit_end
+      )
+    ),
+    link_pipe: $ => prec(2, token("|")),
+    link_display: $ => repeat1($._node),
 
     if_fallback_block: $ => seq(
       $.if_fallback_block_start,
