@@ -10,6 +10,9 @@ module.exports = grammar({
 
   externals: $ => [
     $.comment,
+    $.argument_start,
+    $.argument_end,
+    $.argument_implicit_end,
     $.nowiki_start,
     $.if_block_start,
     $.if_fallback_block_start,
@@ -251,6 +254,7 @@ module.exports = grammar({
       $.scale_fallback_block,
       $.color_block,
       $.color_fallback_block,
+      $.argument,
       $.escape,
       $.text,
       $.macro,
@@ -264,6 +268,7 @@ module.exports = grammar({
       $.scale_fallback_block_inline,
       $.color_block_inline,
       $.color_fallback_block_inline,
+      $.argument,
       $.escape,
       $.text_inline,
       $.macro_inline,
@@ -279,17 +284,18 @@ module.exports = grammar({
     if_block: $ => seq(
       $.if_block_start,
       "#!if",
-      optional(field('expression', $.block_header)),
-      /\r?\n/,
+      optional(field('expression', $.if_block_header)),
+      token.immediate(/\r?\n/),
       optional($.block_content),
       $._block_end
     ),
+    if_block_header: $ => repeat1(/[^\r\n]+/),
 
     folding_block: $ => seq(
       $.folding_block_start,
       "#!folding",
       optional(field('text', $.block_header)),
-      /\r?\n/,
+      token.immediate(/\r?\n/),
       optional($.block_content),
       $._block_end
     ),
@@ -298,7 +304,7 @@ module.exports = grammar({
       $.syntax_block_start,
       "#!syntax",
       field('language', $.block_header),
-      /\r?\n/,
+      token.immediate(/\r?\n/),
       optional(field('content', $.nowiki_content)),
       $._block_end
     ),
@@ -336,13 +342,16 @@ module.exports = grammar({
       $.wiki_block_start,
       "#!wiki",
       optional($.wiki_block_header),
-      /\r?\n/,
+      token.immediate(/\r?\n/),
       optional($.block_content),
       $._block_end
     ),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
-      /[^\r\n]+/
+      prec(1, token(/[^\r\n@=]+/)),
+      prec(1, $.argument),
+      prec(-10, token("@")),
+      prec(-10, token("="))
     )),
 
     // 5가지 속성 중 하나와 매칭
@@ -355,14 +364,28 @@ module.exports = grammar({
     ),
 
     // 끝나는 따옴표가 있어야지만 유효
-    wiki_attr_value: ($) => repeat1(prec(1, token(/[^\r\n"]+/))),
-    wiki_style_attr: ($) => seq('style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
-    wiki_dark_style_attr: ($) => seq('dark-style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
-    wiki_tag_attr: ($) => seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
-    wiki_class_attr: ($) => seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
-    wiki_lang_attr: ($) => seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
+    wiki_attr_value: ($) => prec.right(repeat1(
+      choice(
+        prec(1, token(/[^\r\n"@=]+/)),
+        prec(-10, token("=")),
+        prec(1, $.argument),
+        prec(-10, token("@"))
+      )
+    )),
+    wiki_style_attr: ($) => prec.right(seq('style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
+    wiki_dark_style_attr: ($) => prec.right(seq('dark-style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
+    wiki_tag_attr: ($) => prec.right(seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
+    wiki_class_attr: ($) => prec.right(seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
+    wiki_lang_attr: ($) => prec.right(seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
 
-    block_header: $ => repeat1(/[^\r\n]+/),
+    block_header: $ => repeat1(
+      choice(
+        prec(1, token(/[^\r\n@=]+/)),
+        prec(-10, token("=")),
+        prec(1, $.argument),
+        prec(-10, token("@"))
+      )
+    ),
     block_content: $ => repeat1($._node),
     block_content_inline: $ => repeat1($._node_inline),
 
@@ -420,11 +443,12 @@ module.exports = grammar({
       "(",
       repeat(
         choice(
-          /[^=)}\\]+/,
+          /[^=)}\\@]+/,
           $.escape,
           prec(-10, token('=')),
           prec(-10, token(')')),
-          prec(-10, token('}'))
+          prec(-10, token('}')),
+          prec(-10, token('@')),
         )
       ),
       choice(
@@ -438,10 +462,12 @@ module.exports = grammar({
       "(",
       repeat(
         choice(
-          /[^=\r\n)\\]+/,
+          /[^=\r\n)\\@]+/,
           $.escape,
+          $.argument,
           prec(-10, token('=')),
-          prec(-10, token(')'))
+          prec(-10, token(')')),
+          prec(-10, token('@')),
         )
       ),
       choice(
@@ -473,17 +499,21 @@ module.exports = grammar({
       choice(
         /[^\]\|\}\r\n\\]+/,
         $.escape,
+        $.argument,
         prec(-10, token(']')),
-        prec(-10, token('}'))
+        prec(-10, token('}')),
+        prec(-10, token('@')),
       )
     ),
     link_link_inline: $ => repeat1(
       choice(
-        /[^\]\|\}\=\r\n\\]+/,
+        /[^\]\|\}\=\r\n\\@]+/,
         $.escape,
+        $.argument,
         prec(-10, token(']')),
         prec(-10, token('}')),
-        prec(-10, token('='))
+        prec(-10, token('=')),
+        prec(-10, token('@')),
       )
     ),
     link_display: $ => repeat1($._node),
@@ -554,28 +584,48 @@ module.exports = grammar({
     nowiki_content: $ => repeat1(
       choice(
         seq($.nowiki_start, optional($.nowiki_content), $._block_end),
-        /[^{}=#\r\n]+/,
+        /[^{}=#\r\n@]+/,
         prec(-10, token('=')),
         prec(-10, token('#')),
         prec(-10, token(/\r?\n/)),
         prec(-10, token('{')),
-        prec(-10, token('}'))
+        prec(-10, token('}')),
+        prec(-10, token('@')),
+        prec(1, $.argument)
       )
     ),
     nowiki_content_inline: $ => repeat1(
       choice(
         seq($.nowiki_start, optional($.nowiki_content_inline), $._block_end),
-        /[^{}=#\r\n]+/,
+        /[^{}=#\r\n@]+/,
         prec(-10, token('=')),
         prec(-10, token('#')),
         prec(-10, token('{')),
-        prec(-10, token('}'))
+        prec(-10, token('}')),
+        prec(-10, token('@')),
+        prec(1, $.argument)
       )
     ),
 
+    argument: $ => prec.right(seq(
+      $.argument_start,
+      field('name', $.argument_name),
+      optional(
+        seq("=", optional(
+          field('value', $.argument_value)
+        ))
+      ),
+      choice(
+        $.argument_end,
+        $.argument_implicit_end
+      )
+    )),
+    argument_name: $ => token(/[\p{L}\p{N}\p{M}_]+/u),
+    argument_value: $ => token(/[^\n\r@]+/u),
+
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\]+/,
+      /[^\[\]{}=#\r\n\\@]+/,
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(-10, token(/\r?\n/)),
@@ -584,9 +634,10 @@ module.exports = grammar({
       prec(-10, token('[')),
       prec(-10, token(']')),
       prec(-10, token('\\')),
+      prec(-10, token('@')),
     )),
     text_inline: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\]+/,
+      /[^\[\]{}=#\r\n\\@]+/,
       prec(-10, token('#')),
       prec(-10, token('=')),
       prec(-10, token('{')),
@@ -594,6 +645,7 @@ module.exports = grammar({
       prec(-10, token('[')),
       prec(-10, token(']')),
       prec(-10, token('\\')),
+      prec(-10, token('@')),
     )),
   }
 });

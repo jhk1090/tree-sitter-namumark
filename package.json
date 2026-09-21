@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "generate": "tree-sitter generate",
+    "generate:unicode": "node tools/generate_unicode_ranges.js",
     "build": "tree-sitter build --wasm",
     "test": "tree-sitter test",
     "playground": "tree-sitter playground",

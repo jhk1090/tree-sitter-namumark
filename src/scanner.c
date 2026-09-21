@@ -5,11 +5,15 @@
 #include <wctype.h>
 #include <string.h>
 #include <stdio.h>
+#include "unicode_ranges.h"
 
 #define NO_HEADING_TOKEN 0
 
 enum TokenType {
   COMMENT,
+  ARGUMENT_START,
+  ARGUMENT_END,
+  ARGUMENT_IMPLICIT_END,
   NOWIKI_START,
   IF_BLOCK_START,
   IF_FALLBACK_BLOCK_START,
@@ -67,6 +71,7 @@ enum BlockType {
 typedef struct {
   bool in_heading;
   bool in_macro;
+  bool in_argument;
   uint32_t link_depth;
   uint32_t depth;
   uint8_t stack[256];
@@ -336,28 +341,6 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
   return NO_HEADING_TOKEN;
 }
 
-// 1. 유효한 매크로 이름 문자(영문, 숫자, 한글, 언더스코어 등) 판별
-static bool is_macro_char(int32_t ch) {
-  // ASCII 영문자 / 숫자 / 언더스코어
-  if ((ch >= 'a' && ch <= 'z') || 
-      (ch >= 'A' && ch <= 'Z') || 
-      (ch >= '0' && ch <= '9') || 
-      ch == '_') {
-    return true;
-  }
-
-  // 완성형 한글 (U+AC00 ~ U+D7A3)
-  if (ch >= 0xAC00 && ch <= 0xD7A3) return true;
-
-  // 한글 자모 (U+1100 ~ U+11FF, U+3131 ~ U+318E)
-  if ((ch >= 0x1100 && ch <= 0x11FF) || 
-      (ch >= 0x3131 && ch <= 0x318E)) {
-    return true;
-  }
-
-  return false;
-}
-
 // 2. int32_t 유니코드를 UTF-8 바이트 시퀀스로 인코딩하는 헬퍼 함수
 static size_t encode_utf8(int32_t ch, char *buf) {
   if (ch < 0x80) {
@@ -387,7 +370,7 @@ static bool consume_macro(TSLexer *lexer) {
   char buf[128];
   size_t len = 0;
 
-  while (is_macro_char(lexer->lookahead)) {
+  while (is_unicode_letter_or_number((uint32_t)lexer->lookahead)) {
     int32_t ch = lexer->lookahead;
 
     // 영문 대문자만 소문자로 변환 (한글은 변환하지 않음)
@@ -424,6 +407,36 @@ static bool consume_macro(TSLexer *lexer) {
   return false;
 }
 
+static bool consume_argument(TSLexer *lexer) {
+  if (lexer->lookahead != '@') return false;
+  lexer->advance(lexer, false);
+  lexer->mark_end(lexer);
+
+  bool is_zero_length = true;
+  bool has_default_value = false;
+  while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
+    if (!has_default_value && lexer->lookahead == '=') {
+      is_zero_length = true;
+      has_default_value = true;
+      lexer->advance(lexer, false);
+      continue;
+    }
+
+    if (lexer->lookahead == '@') {
+      if (is_zero_length) return false;
+      return true;
+    }
+
+    if (!has_default_value && !is_unicode_letter_or_number((uint32_t)lexer->lookahead)) return false;
+    
+    is_zero_length = false;
+
+    lexer->advance(lexer, false);
+  }
+
+  return false;
+}
+
 
 // --- Lifecycle 함수들 ---
 
@@ -441,33 +454,36 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
 
   buffer[0] = (char)scanner->in_heading;
   buffer[1] = (char)scanner->in_macro;
-  buffer[2] = (char)scanner->link_depth;
-  buffer[3] = (char)scanner->depth;
+  buffer[2] = (char)scanner->in_argument;
+  buffer[3] = (char)scanner->link_depth;
+  buffer[4] = (char)scanner->depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    buffer[4 + i] = (char)scanner->stack[i];
+    buffer[5 + i] = (char)scanner->stack[i];
   }
-  return scanner->depth + 4;
+  return scanner->depth + 5;
 }
 
 void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
   Scanner *scanner = (Scanner *)payload;
   scanner->in_heading = false;
   scanner->in_macro = false;
+  scanner->in_argument = false;
   scanner->link_depth = 0;
   scanner->depth = 0;
 
-  if (length < 4 || buffer == NULL) return;
+  if (length < 5 || buffer == NULL) return;
 
   scanner->in_heading = (bool)buffer[0];
   scanner->in_macro = (bool)buffer[1];
-  scanner->link_depth = (uint32_t)buffer[2];
-  uint32_t saved_depth = (uint32_t)buffer[3];
+  scanner->in_argument = (bool)buffer[2];
+  scanner->link_depth = (uint32_t)buffer[3];
+  uint32_t saved_depth = (uint32_t)buffer[4];
 
-  if (length < 4 + saved_depth) return;
+  if (length < 5 + saved_depth) return;
 
   scanner->depth = saved_depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    scanner->stack[i] = (uint8_t)buffer[4 + i];
+    scanner->stack[i] = (uint8_t)buffer[5 + i];
   }
 }
 
@@ -519,6 +535,11 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         lexer->result_symbol = LINK_IMPLICIT_END;
         return true;
       }
+      if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
+        scanner->in_argument = false;
+        lexer->result_symbol = ARGUMENT_IMPLICIT_END;
+        return true;
+      }
 
       lexer->mark_end(lexer);
       scanner->depth--;
@@ -554,6 +575,13 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     return true;
   }
 
+  if (scanner->in_argument && lexer->lookahead == '@' && valid_symbols[ARGUMENT_END]) {
+    lexer->advance(lexer, false);
+    scanner->in_argument = false;
+    lexer->result_symbol = ARGUMENT_END;
+    return true;
+  }
+
   if (scanner->in_heading) {
     if (lexer->lookahead == '#' || lexer->lookahead == '=') {
       if (scanner->depth > 0 && valid_symbols[BRACKET_IMPLICIT_END]) {
@@ -569,6 +597,11 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       if (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) {
         scanner->link_depth--;
         lexer->result_symbol = LINK_IMPLICIT_END;
+        return true;
+      }
+      if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
+        scanner->in_argument = false;
+        lexer->result_symbol = ARGUMENT_IMPLICIT_END;
         return true;
       }
       while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
@@ -699,6 +732,12 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         return true;
       }
     }
+  }
+
+  if (!scanner->in_argument && lexer->lookahead == '@' && valid_symbols[ARGUMENT_START] && consume_argument(lexer)) {
+    scanner->in_argument = true;
+    lexer->result_symbol = ARGUMENT_START;
+    return true;
   }
 
   return false;
