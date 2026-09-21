@@ -50,6 +50,7 @@ module.exports = grammar({
     $.macro_end,
     $.macro_implicit_end,
     $.link_start,
+    $.link_pipe,
     $.link_end,
     $.link_implicit_end
   ],
@@ -445,6 +446,7 @@ module.exports = grammar({
         choice(
           /[^=)}\\@]+/,
           $.escape,
+          $.argument,
           prec(-10, token('=')),
           prec(-10, token(')')),
           prec(-10, token('}')),
@@ -494,7 +496,6 @@ module.exports = grammar({
         $.link_implicit_end
       )
     ),
-    link_pipe: $ => prec(2, token("|")),
     link_link: $ => repeat1(
       choice(
         /[^\]\|\}\r\n\\]+/,
@@ -621,7 +622,15 @@ module.exports = grammar({
       )
     )),
     argument_name: $ => token(/[\p{L}\p{N}\p{M}_]+/u),
-    argument_value: $ => token(/[^\n\r@]+/u),
+    argument_value: $ => repeat1(
+      choice(
+        /[^\n\r@})\]\|]+/,
+        prec(-10, token('}')),
+        prec(-10, token(')')),
+        prec(-10, token(']')),
+        prec(-10, token('|')),
+      )
+    ),
 
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
