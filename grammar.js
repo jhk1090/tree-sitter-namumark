@@ -341,7 +341,7 @@ module.exports = grammar({
     ),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
-      /[^\n\s]/ // 속성 없이 그냥 일반 헤더만 오는 경우
+      /[^\r\n]+/
     )),
 
     // 5가지 속성 중 하나와 매칭
@@ -361,7 +361,7 @@ module.exports = grammar({
     wiki_class_attr: ($) => seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
     wiki_lang_attr: ($) => seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"'))),
 
-    block_header: $ => repeat1(/[^\n\s]+/),
+    block_header: $ => repeat1(/[^\r\n]+/),
     block_content: $ => repeat1($._node),
     block_content_inline: $ => repeat1($._node_inline),
 

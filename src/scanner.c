@@ -141,6 +141,9 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_
     }
 
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
+      if (lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
+        return register_token(lexer, scanner, TOKEN_TYPE + 1, BLOCK_TYPE_NOWIKI);
+      }
       lexer->advance(lexer, false);
     }
   } else {
