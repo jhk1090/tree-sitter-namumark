@@ -416,8 +416,8 @@ module.exports = grammar({
       repeat(
         choice(
           /[^=)]/,
-          token(prec(-10, '=')),
-          token(prec(-10, ')'))
+          prec(-10, token('=')),
+          prec(-10, token(')'))
         )
       ),
       choice(
@@ -432,8 +432,8 @@ module.exports = grammar({
       repeat(
         choice(
           /[^=\r\n)]/,
-          token(prec(-10, '=')),
-          token(prec(-10, ')'))
+          prec(-10, token('=')),
+          prec(-10, token(')'))
         )
       ),
       choice(
@@ -509,43 +509,43 @@ module.exports = grammar({
       choice(
         seq($.nowiki_start, optional($.nowiki_content), $._block_end),
         /[^{}=#\r\n]+/,
-        token(prec(-10, '=')),
-        token(prec(-10, '#')),
-        token(prec(-10, /\r?\n/)),
-        token(prec(-10, '{')),
-        token(prec(-10, '}'))
+        prec(-10, token('=')),
+        prec(-10, token('#')),
+        prec(-10, token(/\r?\n/)),
+        prec(-10, token('{')),
+        prec(-10, token('}'))
       )
     ),
     nowiki_content_inline: $ => repeat1(
       choice(
         seq($.nowiki_start, optional($.nowiki_content_inline), $._block_end),
         /[^{}=#\r\n]+/,
-        token(prec(-10, '=')),
-        token(prec(-10, '#')),
-        token(prec(-10, '{')),
-        token(prec(-10, '}'))
+        prec(-10, token('=')),
+        prec(-10, token('#')),
+        prec(-10, token('{')),
+        prec(-10, token('}'))
       )
     ),
 
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n]+/,
-      token(prec(-10, '=')),
-      token(prec(-10, '#')),
-      token(prec(-10, /\r?\n/)),
-      token(prec(-10, '{')),
-      token(prec(-10, '}')),
-      token(prec(-10, '[')),
-      token(prec(-10, ']'))
+      prec(-10, token('=')),
+      prec(-10, token('#')),
+      prec(-10, token(/\r?\n/)),
+      prec(-10, token('{')),
+      prec(-10, token('}')),
+      prec(-10, token('[')),
+      prec(-10, token(']'))
     )),
     text_inline: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n]+/,
-      token(prec(-10, '#')),
-      token(prec(-10, '=')),
-      token(prec(-10, '{')),
-      token(prec(-10, '}')),
-      token(prec(-10, '[')),
-      token(prec(-10, ']'))
+      prec(-10, token('#')),
+      prec(-10, token('=')),
+      prec(-10, token('{')),
+      prec(-10, token('}')),
+      prec(-10, token('[')),
+      prec(-10, token(']'))
     )),
   }
 });
