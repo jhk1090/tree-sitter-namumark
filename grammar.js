@@ -81,7 +81,10 @@ module.exports = grammar({
     $.link_start,
     $.link_pipe,
     $.link_end,
-    $.link_implicit_end
+    $.link_implicit_end,
+    $.bold_start,
+    $.bold_end,
+    $.bold_implicit_end,
   ],
 
   rules: {
@@ -202,7 +205,8 @@ module.exports = grammar({
       $.text,
       $.macro,
       $.macro_without_args,
-      $.link
+      $.link,
+      $.bold
     ),
     _node_inline: $ => choice(
       $._block_inline,
@@ -212,7 +216,8 @@ module.exports = grammar({
       $.text_inline,
       $.macro_inline,
       $.macro_without_args,
-      $.link_inline
+      $.link_inline,
+      $.bold_inline
     ),
 
     _block: $ => choice(
@@ -456,7 +461,7 @@ module.exports = grammar({
     ),
     link_link: $ => repeat1(
       choice(
-        /[^\]\|\}\r\n\\]+/,
+        /[^\]\|\}\r\n\\@]+/,
         $.escape,
         $.argument,
         prec(-10, token(']')),
@@ -477,6 +482,11 @@ module.exports = grammar({
     ),
     link_display: $ => repeat1($._node),
     link_display_inline: $ => repeat1($._node_inline),
+
+    bold: $ => seq($.bold_start, optional(field('content', $.bold_content)), choice($.bold_end, $.bold_implicit_end)),
+    bold_inline: $ => seq($.bold_start, optional(field('content', $.bold_content_inline)), choice($.bold_end, $.bold_implicit_end)),
+    bold_content: $ => repeat1($._node),
+    bold_content_inline: $ => repeat1($._node_inline),
 
     _fallback_block: $ => choice(
       $.if_fallback_block,
@@ -571,17 +581,18 @@ module.exports = grammar({
     argument_name: $ => token(/[\p{L}\p{N}\p{M}_]+/u),
     argument_value: $ => repeat1(
       choice(
-        /[^\n\r@})\]\|]+/,
+        /[^\n\r@})\]\|']+/,
         prec(-10, token('}')),
         prec(-10, token(')')),
         prec(-10, token(']')),
         prec(-10, token('|')),
+        prec(-10, token('\'')),
       )
     ),
 
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@]+/,
+      /[^\[\]{}=#\r\n\\@']+/,
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(-10, token(/\r?\n/)),
@@ -591,9 +602,10 @@ module.exports = grammar({
       prec(-10, token(']')),
       prec(-10, token('\\')),
       prec(-10, token('@')),
+      prec(-10, token('\'')),
     )),
     text_inline: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@]+/,
+      /[^\[\]{}=#\r\n\\@']+/,
       prec(-10, token('#')),
       prec(-10, token('=')),
       prec(-10, token('{')),
@@ -602,6 +614,7 @@ module.exports = grammar({
       prec(-10, token(']')),
       prec(-10, token('\\')),
       prec(-10, token('@')),
+      prec(-10, token('\'')),
     )),
   }
 });
