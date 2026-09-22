@@ -367,10 +367,11 @@ module.exports = grammar({
     ),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
-      prec(1, token(/[^\r\n@=]+/)),
+      prec(1, token(/[^\r\n@= ]+/)),
       prec(1, $.argument),
       prec(-10, token("@")),
-      prec(-10, token("="))
+      prec(-10, token("=")),
+      prec(-10, token(" ")),
     )),
 
     // 5가지 속성 중 하나와 매칭
@@ -385,17 +386,17 @@ module.exports = grammar({
     // 끝나는 따옴표가 있어야지만 유효
     wiki_attr_value: ($) => prec.right(repeat1(
       choice(
-        prec(1, token(/[^\r\n"@=]+/)),
+        token(prec(2, /[^\r\n"@=]+/)),
         prec(-10, token("=")),
         prec(1, $.argument),
         prec(-10, token("@"))
       )
     )),
-    wiki_style_attr: ($) => prec.right(seq('style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
-    wiki_dark_style_attr: ($) => prec.right(seq('dark-style="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
-    wiki_tag_attr: ($) => prec.right(seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
-    wiki_class_attr: ($) => prec.right(seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
-    wiki_lang_attr: ($) => prec.right(seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", '"')))),
+    wiki_style_attr: ($) => prec.right(seq('style="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
+    wiki_dark_style_attr: ($) => prec.right(seq('dark-style="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
+    wiki_tag_attr: ($) => prec.right(seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
+    wiki_class_attr: ($) => prec.right(seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
+    wiki_lang_attr: ($) => prec.right(seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
 
     block_header: $ => repeat1(
       choice(
