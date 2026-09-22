@@ -169,10 +169,13 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *va
     }
 
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
-      if (lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
-        return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+      if (lexer->lookahead == '}') {
+        if (consume_string(lexer, "}}}")) {
+          return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+        }
+      } else {
+        advance(lexer);
       }
-      advance(lexer);
     }
   } else {
     if (is_header_needed) {
