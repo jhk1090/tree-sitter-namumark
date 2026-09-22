@@ -79,6 +79,8 @@ typedef struct {
   uint8_t stack[256];
 } Scanner;
 
+enum { SERIALIZED_HEADER_SIZE = 6 };
+
 // --- Helper 함수들 ---
 
 static bool consume_string(TSLexer *lexer, const char *str) {
@@ -447,18 +449,19 @@ void tree_sitter_namumark_external_scanner_destroy(void *payload) {
 
 unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *buffer) {
   Scanner *scanner = (Scanner *)payload;
-  if (scanner->depth > 255) return 0;
+  if (scanner->depth > UINT8_MAX || scanner->link_depth > UINT8_MAX) return 0;
 
-  buffer[0] = (char)scanner->heading_level;
-  buffer[1] = (char)scanner->is_hidden_heading;
-  buffer[2] = (char)scanner->in_macro;
-  buffer[3] = (char)scanner->in_argument;
-  buffer[4] = (char)scanner->link_depth;
-  buffer[5] = (char)scanner->depth;
+  size_t size = 0;
+  buffer[size++] = (char)scanner->heading_level;
+  buffer[size++] = (char)scanner->is_hidden_heading;
+  buffer[size++] = (char)scanner->in_macro;
+  buffer[size++] = (char)scanner->in_argument;
+  buffer[size++] = (char)scanner->link_depth;
+  buffer[size++] = (char)scanner->depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    buffer[6 + i] = (char)scanner->stack[i];
+    buffer[size++] = (char)scanner->stack[i];
   }
-  return scanner->depth + 6;
+  return size;
 }
 
 void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
@@ -470,20 +473,22 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->link_depth = 0;
   scanner->depth = 0;
 
-  if (length < 6 || buffer == NULL) return;
+  if (buffer == NULL || length < SERIALIZED_HEADER_SIZE) return;
 
-  scanner->heading_level = (uint8_t)buffer[0];
-  scanner->is_hidden_heading = (bool)buffer[1];
-  scanner->in_macro = (bool)buffer[2];
-  scanner->in_argument = (bool)buffer[3];
-  scanner->link_depth = (uint32_t)buffer[4];
-  uint32_t saved_depth = (uint32_t)buffer[5];
+  const unsigned char *data = (const unsigned char *)buffer;
+  size_t size = 0;
+  scanner->heading_level = data[size++];
+  scanner->is_hidden_heading = data[size++] != 0;
+  scanner->in_macro = data[size++] != 0;
+  scanner->in_argument = data[size++] != 0;
+  scanner->link_depth = data[size++];
+  uint32_t saved_depth = data[size++];
 
-  if (length < 6 + saved_depth) return;
+  if (saved_depth > sizeof scanner->stack || length - size < saved_depth) return;
 
   scanner->depth = saved_depth;
   for (uint32_t i = 0; i < scanner->depth; i++) {
-    scanner->stack[i] = (uint8_t)buffer[6 + i];
+    scanner->stack[i] = (uint8_t)buffer[size + i];
   }
 }
 
