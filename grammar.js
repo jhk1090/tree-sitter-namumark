@@ -5,6 +5,24 @@ const requiredArgMacros = ["anchor", "age", "dday", "youtube", "kakaotv", "vimeo
 const optionalArgMacros = ["pagecount", "목차", "tableofcontents"]
 const noArgMacros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
 
+/// @ts-ignore
+function fallback($, startRule) {
+  return seq(
+    startRule,
+    optional(field('content', $.nowiki_content)),
+    $._block_end
+  )
+}
+
+/// @ts-ignore
+function fallback_inline($, startRule) {
+  return seq(
+    startRule,
+    optional(field('content', $.nowiki_content_inline)),
+    $._block_end
+  )
+}
+
 module.exports = grammar({
   name: 'namumark',
 
@@ -23,6 +41,7 @@ module.exports = grammar({
     $.wiki_block_start,
     $.wiki_fallback_block_start,
     $.html_block_start,
+    $.html_fallback_block_start,
     $.style_block_start,
     $.style_fallback_block_start,
     $.latex_block_start,
@@ -237,24 +256,8 @@ module.exports = grammar({
 
     _node: $ => choice(
       $.comment,
-      $.nowiki,
-      $.if_block,
-      $.if_fallback_block,
-      $.folding_block,
-      $.folding_fallback_block,
-      $.syntax_block,
-      $.syntax_fallback_block,
-      $.wiki_block,
-      $.wiki_fallback_block,
-      $.html_block,
-      $.style_block,
-      $.style_fallback_block,
-      $.latex_block,
-      $.latex_fallback_block,
-      $.scale_block,
-      $.scale_fallback_block,
-      $.color_block,
-      $.color_fallback_block,
+      $._block,
+      $._fallback_block,
       $.argument,
       $.escape,
       $.text,
@@ -263,18 +266,33 @@ module.exports = grammar({
       $.link
     ),
     _node_inline: $ => choice(
-      $.nowiki_inline,
-      $.html_block_inline,
-      $.scale_block_inline,
-      $.scale_fallback_block_inline,
-      $.color_block_inline,
-      $.color_fallback_block_inline,
+      $._block_inline,
+      $._fallback_block_inline,
       $.argument,
       $.escape,
       $.text_inline,
       $.macro_inline,
       $.macro_without_args,
       $.link_inline
+    ),
+
+    _block: $ => choice(
+      $.nowiki,
+      $.if_block,
+      $.folding_block,
+      $.syntax_block,
+      $.wiki_block,
+      $.html_block,
+      $.style_block,
+      $.latex_block,
+      $.scale_block,
+      $.color_block,
+    ),
+    _block_inline: $ => choice(
+      $.nowiki_inline,
+      $.html_block_inline,
+      $.scale_block_inline,
+      $.color_block_inline,
     ),
 
     _block_end: $ => choice(
@@ -520,56 +538,45 @@ module.exports = grammar({
     link_display: $ => repeat1($._node),
     link_display_inline: $ => repeat1($._node_inline),
 
-    if_fallback_block: $ => seq(
-      $.if_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
+    _fallback_block: $ => choice(
+      $.if_fallback_block,
+      $.folding_fallback_block,
+      $.syntax_fallback_block,
+      $.wiki_fallback_block,
+      $.style_fallback_block,
+      $.latex_fallback_block,
+      $.scale_fallback_block,
+      $.color_fallback_block
     ),
-    folding_fallback_block: $ => seq(
-      $.folding_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
+
+    if_fallback_block: $ => fallback($, $.if_fallback_block_start),
+    folding_fallback_block: $ => fallback($, $.folding_fallback_block_start),
+    syntax_fallback_block: $ => fallback($, $.syntax_fallback_block_start),
+    wiki_fallback_block: $ => fallback($, $.wiki_fallback_block_start),
+    style_fallback_block: $ => fallback($, $.style_fallback_block_start),
+    latex_fallback_block: $ => fallback($, $.latex_fallback_block_start),
+    scale_fallback_block: $ => fallback($, $.scale_fallback_block_start),
+    color_fallback_block: $ => fallback($, $.color_fallback_block_start),
+
+    _fallback_block_inline: $ => choice(
+      $.if_fallback_block,
+      $.folding_fallback_block,
+      $.syntax_fallback_block,
+      $.wiki_fallback_block,
+      $.style_fallback_block,
+      $.latex_fallback_block,
+      $.scale_fallback_block,
+      $.color_fallback_block
     ),
-    syntax_fallback_block: $ => seq(
-      $.syntax_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
-    ),
-    wiki_fallback_block: $ => seq(
-      $.wiki_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
-    ),
-    style_fallback_block: $ => seq(
-      $.style_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
-    ),
-    latex_fallback_block: $ => seq(
-      $.latex_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
-    ),
-    scale_fallback_block: $ => seq(
-      $.scale_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
-    ),
-    scale_fallback_block_inline: $ => seq(
-      $.scale_fallback_block_start,
-      optional(field('content', $.nowiki_content_inline)),
-      $._block_end
-    ),
-    color_fallback_block: $ => seq(
-      $.color_fallback_block_start,
-      optional(field('content', $.nowiki_content)),
-      $._block_end
-    ),
-    color_fallback_block_inline: $ => seq(
-      $.color_fallback_block_start,
-      optional(field('content', $.nowiki_content_inline)),
-      $._block_end
-    ),
+
+    if_fallback_block_inline: $ => fallback_inline($, $.if_fallback_block_start),
+    folding_fallback_block_inline: $ => fallback_inline($, $.folding_fallback_block_start),
+    syntax_fallback_block_inline: $ => fallback_inline($, $.syntax_fallback_block_start),
+    wiki_fallback_block_inline: $ => fallback_inline($, $.wiki_fallback_block_start),
+    style_fallback_block_inline: $ => fallback_inline($, $.style_fallback_block_start),
+    latex_fallback_block_inline: $ => fallback_inline($, $.latex_fallback_block_start),
+    scale_fallback_block_inline: $ => fallback_inline($, $.scale_fallback_block_start),
+    color_fallback_block_inline: $ => fallback_inline($, $.color_fallback_block_start),
 
     nowiki: $ => seq(
       $.nowiki_start,
