@@ -83,20 +83,24 @@ enum { SERIALIZED_HEADER_SIZE = 6 };
 
 // --- Helper 함수들 ---
 
+static void advance(TSLexer *lexer) {
+  lexer->advance(lexer, false);
+}
+
 static bool consume_string(TSLexer *lexer, const char *str) {
   for (const char *c = str; *c != '\0'; c++) {
     if (lexer->lookahead != *c) return false;
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
   return true;
 }
 
 static bool consume_newline(TSLexer *lexer) {
   if (lexer->lookahead == '\r') {
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
   if (lexer->lookahead != '\n') return false;
-  lexer->advance(lexer, false);
+  advance(lexer);
   return true;
 }
 
@@ -109,7 +113,7 @@ static bool consume_language(TSLexer *lexer) {
     if (len < 31) {
       buf[len++] = (char)lexer->lookahead;
     }
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
   buf[len] = '\0';
 
@@ -153,7 +157,7 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, uint8_t TOKEN_
       if (lexer->lookahead == '}' && consume_string(lexer, "}}}")) {
         return register_token(lexer, scanner, TOKEN_TYPE + 1, BLOCK_TYPE_NOWIKI);
       }
-      lexer->advance(lexer, false);
+      advance(lexer);
     }
   } else {
     if (is_header_needed) {
@@ -173,7 +177,7 @@ static bool consume_syntax_block(TSLexer *lexer, Scanner *scanner) {
     return register_token(lexer, scanner, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
 
-  lexer->advance(lexer, false);
+  advance(lexer);
 
   if (!consume_language(lexer)) {
     return register_token(lexer, scanner, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
@@ -195,13 +199,13 @@ static bool consume_scale_block(TSLexer *lexer, Scanner *scanner) {
     return register_token(lexer, scanner, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
 
-  lexer->advance(lexer, false);
+  advance(lexer);
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
       return register_token(lexer, scanner, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
     }
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
 
   return register_token(lexer, scanner, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
@@ -225,7 +229,7 @@ static bool consume_single_color(TSLexer *lexer) {
       all_hex = false;
     }
     buf[len++] = (char)towlower((unsigned char)c);
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
   buf[len] = '\0';
 
@@ -251,11 +255,11 @@ static bool consume_color_block(TSLexer *lexer, Scanner *scanner) {
   if (!consume_single_color(lexer)) return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
 
   if (lexer->lookahead == ',') {
-    lexer->advance(lexer, false);
+    advance(lexer);
     if (lexer->lookahead != '#') {
       return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
     }
-    lexer->advance(lexer, false);
+    advance(lexer);
     if (!consume_single_color(lexer)) return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
   }
   
@@ -263,7 +267,7 @@ static bool consume_color_block(TSLexer *lexer, Scanner *scanner) {
     if (lexer->lookahead != ' ') {
       return register_token(lexer, scanner, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_NOWIKI);
     }
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
 
   return register_token(lexer, scanner, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
@@ -279,14 +283,14 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
 
   uint8_t open_count = 0;
   while (lexer->lookahead == '=' && open_count < 6) {
-    lexer->advance(lexer, false);
+    advance(lexer);
     open_count++;
   }
 
   bool is_hidden = false;
   if (lexer->lookahead == '#') {
     is_hidden = true;
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
 
   uint8_t base_symbol = is_hidden ? HIDDEN_HEADING1_START : HEADING1_START;
@@ -327,7 +331,7 @@ static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
       trailing_equals = 0;
       last_char = lexer->lookahead;
     }
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
   
   if (trailing_equals == open_count && has_trailing_space) {
@@ -383,7 +387,7 @@ static bool consume_macro(TSLexer *lexer) {
     if (encoded_bytes == 0) break;
 
     len += encoded_bytes;
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
   buf[len] = '\0';
 
@@ -407,7 +411,7 @@ static bool consume_macro(TSLexer *lexer) {
 
 static bool consume_argument(TSLexer *lexer) {
   if (lexer->lookahead != '@') return false;
-  lexer->advance(lexer, false);
+  advance(lexer);
   lexer->mark_end(lexer);
 
   bool is_zero_length = true;
@@ -417,7 +421,7 @@ static bool consume_argument(TSLexer *lexer) {
       if (is_zero_length) return false;
       is_zero_length = true;
       has_default_value = true;
-      lexer->advance(lexer, false);
+      advance(lexer);
       continue;
     }
 
@@ -430,13 +434,47 @@ static bool consume_argument(TSLexer *lexer) {
     
     is_zero_length = false;
 
-    lexer->advance(lexer, false);
+    advance(lexer);
   }
 
   return false;
 }
 
+static bool register_bracket_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (scanner->depth > 0 && valid_symbols[BRACKET_IMPLICIT_END]) {
+    scanner->depth--;
+    lexer->result_symbol = BRACKET_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
 
+static bool register_macro_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
+    scanner->in_macro = false;
+    lexer->result_symbol = MACRO_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
+
+static bool register_link_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) {
+    scanner->link_depth--;
+    lexer->result_symbol = LINK_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
+
+static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
+    scanner->in_argument = false;
+    lexer->result_symbol = ARGUMENT_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
 // --- Lifecycle 함수들 ---
 
 void *tree_sitter_namumark_external_scanner_create() {
@@ -499,26 +537,14 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
 
   if (lexer->eof(lexer)) {
-    if (scanner->depth > 0 && valid_symbols[BRACKET_IMPLICIT_END]) {
-      scanner->depth--;
-      lexer->result_symbol = BRACKET_IMPLICIT_END;
-      return true;
-    }
-    if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
-      scanner->in_macro = false;
-      lexer->result_symbol = MACRO_IMPLICIT_END;
-      return true;
-    }
-    if (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) {
-      scanner->link_depth--;
-      lexer->result_symbol = LINK_IMPLICIT_END;
-      return true;
-    }
+    if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
   }
 
   if (lexer->get_column(lexer) == 0 && lexer->lookahead == '#' && consume_string(lexer, "##") && valid_symbols[COMMENT]) {
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
-      lexer->advance(lexer, false);
+      advance(lexer);
     }
 
     lexer->mark_end(lexer);
@@ -530,21 +556,9 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   if (lexer->lookahead == '}' && scanner->depth > 0) {
     lexer->mark_end(lexer);
     if (consume_string(lexer, "}}}")) {
-      if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
-        scanner->in_macro = false;
-        lexer->result_symbol = MACRO_IMPLICIT_END;
-        return true;
-      }
-      if (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) {
-        scanner->link_depth--;
-        lexer->result_symbol = LINK_IMPLICIT_END;
-        return true;
-      }
-      if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
-        scanner->in_argument = false;
-        lexer->result_symbol = ARGUMENT_IMPLICIT_END;
-        return true;
-      }
+      if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
       lexer->mark_end(lexer);
       scanner->depth--;
@@ -556,11 +570,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   if (lexer->lookahead == ')' && scanner->in_macro) {
     lexer->mark_end(lexer);
     if (consume_string(lexer, ")]")) {
-      if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
-        scanner->in_argument = false;
-        lexer->result_symbol = ARGUMENT_IMPLICIT_END;
-        return true;
-      }
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
       if (valid_symbols[MACRO_END]) {
         lexer->mark_end(lexer);
@@ -574,11 +584,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   if (lexer->lookahead == '|' && scanner->link_depth > 0) {
     lexer->mark_end(lexer);
     if (consume_string(lexer, "|")) {
-      if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
-        scanner->in_argument = false;
-        lexer->result_symbol = ARGUMENT_IMPLICIT_END;
-        return true;
-      }
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
       if (valid_symbols[LINK_PIPE]) {
         lexer->mark_end(lexer);
@@ -591,11 +597,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   if (lexer->lookahead == ']' && scanner->link_depth > 0) {
     lexer->mark_end(lexer);
     if (consume_string(lexer, "]]")) {
-      if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
-        scanner->in_argument = false;
-        lexer->result_symbol = ARGUMENT_IMPLICIT_END;
-        return true;
-      }
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
       if (valid_symbols[LINK_END]) {
         lexer->mark_end(lexer);
@@ -609,16 +611,14 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   if (scanner->link_depth > 0 && (lexer->lookahead == '\n' || lexer->lookahead == '\r') && valid_symbols[LINK_IMPLICIT_END]) {
     lexer->mark_end(lexer);
     if (lexer->lookahead == '\r') {
-      lexer->advance(lexer, false);
+      advance(lexer);
     }
-    lexer->advance(lexer, false);
-    scanner->link_depth--;
-    lexer->result_symbol = LINK_IMPLICIT_END;
-    return true;
+    advance(lexer);
+    if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
   }
 
   if (scanner->in_argument && lexer->lookahead == '@' && valid_symbols[ARGUMENT_END]) {
-    lexer->advance(lexer, false);
+    advance(lexer);
     scanner->in_argument = false;
     lexer->result_symbol = ARGUMENT_END;
     return true;
@@ -637,26 +637,10 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     lexer->mark_end(lexer);
 
     if (consume_string(lexer, heading_end_string)) {
-      if (scanner->depth > 0 && valid_symbols[BRACKET_IMPLICIT_END]) {
-        scanner->depth--;
-        lexer->result_symbol = BRACKET_IMPLICIT_END;
-        return true;
-      }
-      if (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) {
-        scanner->in_macro = false;
-        lexer->result_symbol = MACRO_IMPLICIT_END;
-        return true;
-      }
-      if (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) {
-        scanner->link_depth--;
-        lexer->result_symbol = LINK_IMPLICIT_END;
-        return true;
-      }
-      if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
-        scanner->in_argument = false;
-        lexer->result_symbol = ARGUMENT_IMPLICIT_END;
-        return true;
-      }
+      if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
       
       lexer->mark_end(lexer);
       scanner->heading_level = 0;
@@ -683,21 +667,10 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   bool is_link_implicit_end = scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END];
   uint8_t heading_token = match_heading_token(lexer, is_bracket_implicit_end || is_macro_implicit_end || is_link_implicit_end);
   if (heading_token != NO_HEADING_TOKEN) {
-    if (is_bracket_implicit_end) {
-      scanner->depth--;
-      lexer->result_symbol = BRACKET_IMPLICIT_END;
-      return true;
-    }
-    if (is_macro_implicit_end) {
-      scanner->in_macro = false;
-      lexer->result_symbol = MACRO_IMPLICIT_END;
-      return true;
-    }
-    if (is_link_implicit_end) {
-      scanner->link_depth--;
-      lexer->result_symbol = LINK_IMPLICIT_END;
-      return true;
-    }
+    if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
+
     if (valid_symbols[heading_token]) {
       uint8_t offset = heading_token - HEADING1_START + 1;
       
@@ -715,11 +688,11 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
 
       // 첫 번째 '#' 문자를 만나면 단 한 번만 소비 후 다음 문자로 분기
       if (lexer->lookahead == '#') {
-        lexer->advance(lexer, false); // '#' 소비
+        advance(lexer); // '#' 소비
 
         // 2-1. '#!' 블록들 (wiki, syntax, html 등)
         if (lexer->lookahead == '!') {
-          lexer->advance(lexer, false); // '!' 소비
+          advance(lexer); // '!' 소비
 
           if (valid_symbols[IF_BLOCK_START] && consume_string(lexer, "if")) {
             return consume_depth_block(lexer, scanner, IF_BLOCK_START, BLOCK_TYPE_IF, true);
@@ -759,7 +732,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
 
       // 글자 크기 블록 ({{{+1 ...}}}, {{{-2 ...}}})
       if (valid_symbols[SCALE_BLOCK_START] && (lexer->lookahead == '+' || lexer->lookahead == '-')) {
-        lexer->advance(lexer, false);
+        advance(lexer);
         return consume_scale_block(lexer, scanner);
       }
 
@@ -771,10 +744,10 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   }
 
   if (lexer->lookahead == '[') {
-    lexer->advance(lexer, false);
+    advance(lexer);
     lexer->mark_end(lexer);
     if (lexer->lookahead == '[') {
-      lexer->advance(lexer, false);
+      advance(lexer);
       lexer->mark_end(lexer);
       if (valid_symbols[LINK_START]) {
         scanner->link_depth++;
