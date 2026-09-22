@@ -6,20 +6,30 @@ const optionalArgMacros = ["pagecount", "목차", "tableofcontents"]
 const noArgMacros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
 
 /// @ts-ignore
-function fallback($, startRule) {
+function fallback_rule($, start_rule) {
   return seq(
-    startRule,
+    start_rule,
     optional(field('content', $.nowiki_content)),
     $._block_end
   )
 }
 
 /// @ts-ignore
-function fallback_inline($, startRule) {
+function fallback_inline_rule($, start_rule) {
   return seq(
-    startRule,
+    start_rule,
     optional(field('content', $.nowiki_content_inline)),
     $._block_end
+  )
+}
+
+/// @ts-ignore
+function heading_rule($, start_rule) {
+  return seq(
+    alias(start_rule, $.heading_marker),
+    field("title", repeat1($._node_inline)),
+    alias($.heading_end, $.heading_marker),
+    /\r?\n/,
   )
 }
 
@@ -164,95 +174,24 @@ module.exports = grammar({
           repeat($._block_not_section)
         )
       ),
+
     heading: ($) =>
       choice(
         $.heading1, $.heading2, $.heading3, $.heading4, $.heading5, $.heading6,
         $.hidden_heading1, $.hidden_heading2, $.hidden_heading3, $.hidden_heading4, $.hidden_heading5, $.hidden_heading6,
       ),
-    heading1: ($) =>
-      seq(
-        alias($.heading1_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    heading2: ($) =>
-      seq(
-        alias($.heading2_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    heading3: ($) =>
-      seq(
-        alias($.heading3_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    heading4: ($) =>
-      seq(
-        alias($.heading4_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    heading5: ($) =>
-      seq(
-        alias($.heading5_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    heading6: ($) =>
-      seq(
-        alias($.heading6_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    hidden_heading1: ($) =>
-      seq(
-        alias($.hidden_heading1_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    hidden_heading2: ($) =>
-      seq(
-        alias($.hidden_heading2_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    hidden_heading3: ($) =>
-      seq(
-        alias($.hidden_heading3_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    hidden_heading4: ($) =>
-      seq(
-        alias($.hidden_heading4_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    hidden_heading5: ($) =>
-      seq(
-        alias($.hidden_heading5_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
-    hidden_heading6: ($) =>
-      seq(
-        alias($.hidden_heading6_start, $.heading_marker),
-        field("title", repeat1($._node_inline)),
-        alias($.heading_end, $.heading_marker),
-        /\r?\n/,
-      ),
+    heading1: ($) => heading_rule($, $.heading1_start),
+    heading2: ($) => heading_rule($, $.heading2_start),
+    heading3: ($) => heading_rule($, $.heading3_start),
+    heading4: ($) => heading_rule($, $.heading4_start),
+    heading5: ($) => heading_rule($, $.heading5_start),
+    heading6: ($) => heading_rule($, $.heading6_start),
+    hidden_heading1: ($) => heading_rule($, $.hidden_heading1_start),
+    hidden_heading2: ($) => heading_rule($, $.hidden_heading2_start),
+    hidden_heading3: ($) => heading_rule($, $.hidden_heading3_start),
+    hidden_heading4: ($) => heading_rule($, $.hidden_heading4_start),
+    hidden_heading5: ($) => heading_rule($, $.hidden_heading5_start),
+    hidden_heading6: ($) => heading_rule($, $.hidden_heading6_start),
 
     _node: $ => choice(
       $.comment,
@@ -550,14 +489,14 @@ module.exports = grammar({
       $.color_fallback_block
     ),
 
-    if_fallback_block: $ => fallback($, $.if_fallback_block_start),
-    folding_fallback_block: $ => fallback($, $.folding_fallback_block_start),
-    syntax_fallback_block: $ => fallback($, $.syntax_fallback_block_start),
-    wiki_fallback_block: $ => fallback($, $.wiki_fallback_block_start),
-    style_fallback_block: $ => fallback($, $.style_fallback_block_start),
-    latex_fallback_block: $ => fallback($, $.latex_fallback_block_start),
-    scale_fallback_block: $ => fallback($, $.scale_fallback_block_start),
-    color_fallback_block: $ => fallback($, $.color_fallback_block_start),
+    if_fallback_block: $ => fallback_rule($, $.if_fallback_block_start),
+    folding_fallback_block: $ => fallback_rule($, $.folding_fallback_block_start),
+    syntax_fallback_block: $ => fallback_rule($, $.syntax_fallback_block_start),
+    wiki_fallback_block: $ => fallback_rule($, $.wiki_fallback_block_start),
+    style_fallback_block: $ => fallback_rule($, $.style_fallback_block_start),
+    latex_fallback_block: $ => fallback_rule($, $.latex_fallback_block_start),
+    scale_fallback_block: $ => fallback_rule($, $.scale_fallback_block_start),
+    color_fallback_block: $ => fallback_rule($, $.color_fallback_block_start),
 
     _fallback_block_inline: $ => choice(
       $.if_fallback_block,
@@ -570,14 +509,14 @@ module.exports = grammar({
       $.color_fallback_block
     ),
 
-    if_fallback_block_inline: $ => fallback_inline($, $.if_fallback_block_start),
-    folding_fallback_block_inline: $ => fallback_inline($, $.folding_fallback_block_start),
-    syntax_fallback_block_inline: $ => fallback_inline($, $.syntax_fallback_block_start),
-    wiki_fallback_block_inline: $ => fallback_inline($, $.wiki_fallback_block_start),
-    style_fallback_block_inline: $ => fallback_inline($, $.style_fallback_block_start),
-    latex_fallback_block_inline: $ => fallback_inline($, $.latex_fallback_block_start),
-    scale_fallback_block_inline: $ => fallback_inline($, $.scale_fallback_block_start),
-    color_fallback_block_inline: $ => fallback_inline($, $.color_fallback_block_start),
+    if_fallback_block_inline: $ => fallback_inline_rule($, $.if_fallback_block_start),
+    folding_fallback_block_inline: $ => fallback_inline_rule($, $.folding_fallback_block_start),
+    syntax_fallback_block_inline: $ => fallback_inline_rule($, $.syntax_fallback_block_start),
+    wiki_fallback_block_inline: $ => fallback_inline_rule($, $.wiki_fallback_block_start),
+    style_fallback_block_inline: $ => fallback_inline_rule($, $.style_fallback_block_start),
+    latex_fallback_block_inline: $ => fallback_inline_rule($, $.latex_fallback_block_start),
+    scale_fallback_block_inline: $ => fallback_inline_rule($, $.scale_fallback_block_start),
+    color_fallback_block_inline: $ => fallback_inline_rule($, $.color_fallback_block_start),
 
     nowiki: $ => seq(
       $.nowiki_start,
