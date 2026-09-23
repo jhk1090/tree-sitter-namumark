@@ -67,6 +67,9 @@ enum TokenType {
   BOLD_START,
   BOLD_END,
   BOLD_IMPLICIT_END,
+  ITALIC_START,
+  ITALIC_END,
+  ITALIC_IMPLICIT_END,
   STRIKE_START,
   STRIKE_END,
   STRIKE_IMPLICIT_END,
@@ -559,6 +562,9 @@ static bool register_format_implicit_end(TSLexer *lexer, Scanner *scanner, const
 static bool register_bold_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   return register_format_implicit_end(lexer, scanner, valid_symbols, FLAG_BOLD, BOLD_IMPLICIT_END);
 }
+static bool register_italic_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  return register_format_implicit_end(lexer, scanner, valid_symbols, FLAG_ITALIC, ITALIC_IMPLICIT_END);
+}
 static bool register_strike_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   return register_format_implicit_end(lexer, scanner, valid_symbols, FLAG_STRIKE, STRIKE_IMPLICIT_END);
 }
@@ -568,6 +574,7 @@ static bool register_strike2_implicit_end(TSLexer *lexer, Scanner *scanner, cons
 
 static bool close_format_implicit_ends(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t EXCLUDED_FLAG) {
   if (EXCLUDED_FLAG != FLAG_BOLD && register_bold_implicit_end(lexer, scanner, valid_symbols)) return true;
+  if (EXCLUDED_FLAG != FLAG_ITALIC && register_italic_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_STRIKE && register_strike_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_STRIKE2 && register_strike2_implicit_end(lexer, scanner, valid_symbols)) return true;
   return false;
@@ -578,6 +585,7 @@ static inline bool should_preserve_heading_start(const Scanner *scanner, const b
          (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) ||
          (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_BOLD) && valid_symbols[BOLD_IMPLICIT_END]) ||
+         (has_current_style(scanner, FLAG_ITALIC) && valid_symbols[ITALIC_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_STRIKE) && valid_symbols[STRIKE_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_STRIKE2) && valid_symbols[STRIKE2_IMPLICIT_END]);
 }
@@ -589,6 +597,27 @@ static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, con
     return true;
   }
   return false;
+}
+
+static bool consume_format(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t FLAG, uint8_t START_TOKEN_TYPE) {
+  if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
+        
+  bool is_formatted = has_current_style(scanner, FLAG);
+  if (!is_formatted && valid_symbols[START_TOKEN_TYPE]) {
+    lexer->mark_end(lexer);
+    set_current_style(scanner, FLAG);
+    lexer->result_symbol = START_TOKEN_TYPE;
+    return true;
+  }
+
+  uint8_t END_TOKEN_TYPE = START_TOKEN_TYPE + 1;
+  if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG)) return true;
+  if (is_formatted && valid_symbols[END_TOKEN_TYPE]) {
+    lexer->mark_end(lexer);
+    clear_current_style(scanner, FLAG);
+    lexer->result_symbol = END_TOKEN_TYPE;
+    return true;
+  }
 }
 // --- Lifecycle 함수들 ---
 
@@ -668,9 +697,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
-    if (register_bold_implicit_end(lexer, scanner, valid_symbols)) return true;
-    if (register_strike_implicit_end(lexer, scanner, valid_symbols)) return true;
-    if (register_strike2_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
   }
 
   // comment 처리
@@ -745,26 +772,16 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
   }
 
-  // bold 처리
   if (lexer->lookahead == '\'') {
     lexer->mark_end(lexer);
-    if (consume_string(lexer, "'''")) {
-      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
-      
-      bool is_bold = has_current_style(scanner, FLAG_BOLD);
-      if (!is_bold && valid_symbols[BOLD_START]) {
-        lexer->mark_end(lexer);
-        set_current_style(scanner, FLAG_BOLD);
-        lexer->result_symbol = BOLD_START;
-        return true;
+    if (consume_string(lexer, "''")) {
+      // bold 처리
+      if (lexer->lookahead == '\'' && consume_string(lexer, "'")) {
+        return consume_format(lexer, scanner, valid_symbols, FLAG_BOLD, BOLD_START);
       }
-
-      if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_BOLD)) return true;
-      if (is_bold && valid_symbols[BOLD_END]) {
-        lexer->mark_end(lexer);
-        clear_current_style(scanner, FLAG_BOLD);
-        lexer->result_symbol = BOLD_END;
-        return true;
+      // italic 처리 
+      else {
+        return consume_format(lexer, scanner, valid_symbols, FLAG_ITALIC, ITALIC_START);
       }
     }
   }
@@ -773,23 +790,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   if (lexer->lookahead == '-') {
     lexer->mark_end(lexer);
     if (consume_string(lexer, "--")) {
-      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
-      
-      bool is_strike = has_current_style(scanner, FLAG_STRIKE);
-      if (!is_strike && valid_symbols[STRIKE_START]) {
-        lexer->mark_end(lexer);
-        set_current_style(scanner, FLAG_STRIKE);
-        lexer->result_symbol = STRIKE_START;
-        return true;
-      }
-
-      if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_STRIKE)) return true;
-      if (is_strike && valid_symbols[STRIKE_END]) {
-        lexer->mark_end(lexer);
-        clear_current_style(scanner, FLAG_STRIKE);
-        lexer->result_symbol = STRIKE_END;
-        return true;
-      }
+      return consume_format(lexer, scanner, valid_symbols, FLAG_STRIKE, STRIKE_START);
     }
   }
 
@@ -797,23 +798,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   if (lexer->lookahead == '~') {
     lexer->mark_end(lexer);
     if (consume_string(lexer, "~~")) {
-      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
-      
-      bool is_strike2 = has_current_style(scanner, FLAG_STRIKE2);
-      if (!is_strike2 && valid_symbols[STRIKE2_START]) {
-        lexer->mark_end(lexer);
-        set_current_style(scanner, FLAG_STRIKE2);
-        lexer->result_symbol = STRIKE2_START;
-        return true;
-      }
-
-      if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_STRIKE2)) return true;
-      if (is_strike2 && valid_symbols[STRIKE2_END]) {
-        lexer->mark_end(lexer);
-        clear_current_style(scanner, FLAG_STRIKE2);
-        lexer->result_symbol = STRIKE2_END;
-        return true;
-      }
+      return consume_format(lexer, scanner, valid_symbols, FLAG_STRIKE2, STRIKE2_START);
     }
   }
 
