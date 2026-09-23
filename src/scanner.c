@@ -660,6 +660,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   uint32_t format_count;
   if (scanner->depth > UINT8_MAX || scanner->link_depth > UINT8_MAX ||
       !get_format_index(scanner, &format_count)) return 0;
+  format_count++;
 
   size_t size = 0;
   buffer[size++] = (char)scanner->heading_level;
@@ -679,6 +680,8 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
 
 void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
   Scanner *scanner = (Scanner *)payload;
+  memset(scanner->stack, 0, sizeof scanner->stack);
+  memset(scanner->format_stack, 0, sizeof scanner->format_stack);
   scanner->heading_level = 0;
   scanner->is_hidden_heading = false;
   scanner->in_macro = false;
@@ -704,10 +707,11 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
     scanner->stack[i] = (uint8_t)buffer[size++];
   }
 
-  if (saved_depth + saved_link_depth > FORMAT_STACK_SIZE || length - size < saved_depth + saved_link_depth) return;
+  uint32_t format_count = saved_depth + saved_link_depth + 1;
+  if (format_count > FORMAT_STACK_SIZE || length - size < format_count) return;
 
   scanner->link_depth = saved_link_depth;
-  for (uint32_t i = 0; i < saved_depth + saved_link_depth; i++) {
+  for (uint32_t i = 0; i < format_count; i++) {
     scanner->format_stack[i] = (uint8_t)buffer[size++];
   }
 }
