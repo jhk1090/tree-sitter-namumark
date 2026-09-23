@@ -107,8 +107,8 @@ typedef struct {
   uint8_t heading_level;
   bool is_hidden_heading;
   uint32_t link_depth;
-  uint32_t depth;
-  uint8_t stack[256];
+  uint32_t block_depth;
+  uint8_t block_stack[256];
   uint8_t format_stack[256];
 } Scanner;
 
@@ -119,10 +119,10 @@ enum {
 
 // --- Helper 함수들 ---
 static inline bool get_format_index(const Scanner *scanner, uint32_t *index) {
-  if (scanner->depth >= FORMAT_STACK_SIZE || scanner->link_depth >= FORMAT_STACK_SIZE - scanner->depth) {
+  if (scanner->block_depth >= FORMAT_STACK_SIZE || scanner->link_depth >= FORMAT_STACK_SIZE - scanner->block_depth) {
     return false;
   }
-  *index = scanner->depth + scanner->link_depth;
+  *index = scanner->block_depth + scanner->link_depth;
   return true;
 }
 
@@ -208,10 +208,10 @@ static bool consume_language(TSLexer *lexer) {
   return is_valid;
 }
 
-static bool register_token(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE) {
+static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE) {
   if (valid_symbols[TOKEN_TYPE]) {
-    if (scanner->depth < 256) {
-      scanner->stack[scanner->depth++] = BLOCK_TYPE;
+    if (scanner->block_depth < 256) {
+      scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE;
       uint32_t index;
       if (get_format_index(scanner, &index)) scanner->format_stack[index] = 0;
     }
@@ -220,8 +220,8 @@ static bool register_token(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   }
 
   if (BLOCK_TYPE != BLOCK_TYPE_FALLBACK && valid_symbols[TOKEN_TYPE + 1]) {
-    if (scanner->depth < 256) {
-      scanner->stack[scanner->depth++] = BLOCK_TYPE_FALLBACK;
+    if (scanner->block_depth < 256) {
+      scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE_FALLBACK;
       uint32_t index;
       if (get_format_index(scanner, &index)) scanner->format_stack[index] = 0;
     }
@@ -235,13 +235,13 @@ static bool register_token(TSLexer *lexer, Scanner *scanner, const bool *valid_s
 static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE, bool is_header_needed) {
   if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
     if (lexer->lookahead != ' ') {
-      return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
     }
 
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
       if (lexer->lookahead == '}') {
         if (consume_string(lexer, "}}}")) {
-          return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+          return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
         }
       } else {
         advance(lexer);
@@ -249,58 +249,58 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *va
     }
   } else {
     if (is_header_needed) {
-      return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
     }
   }
 
   if (!consume_newline(lexer)) {
-    return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
   }
 
   if (!valid_symbols[TOKEN_TYPE]) {
-    return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE);
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE);
   }
 
-  return register_token(lexer, scanner, valid_symbols, TOKEN_TYPE, BLOCK_TYPE);
+  return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE, BLOCK_TYPE);
 }
 
 static bool consume_syntax_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   if (lexer->lookahead != ' ') {
-    return register_token(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
   }
 
   advance(lexer);
 
   if (!consume_language(lexer)) {
-    return register_token(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
   }
   
   if (!consume_newline(lexer)) {
-    return register_token(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
   }
 
-  return register_token(lexer, scanner, valid_symbols, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
+  return register_block(lexer, scanner, valid_symbols, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
 }
 
 static bool consume_scale_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   if (!iswdigit(lexer->lookahead)) {
-    return register_token(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
   }
 
   if (!(lexer->lookahead >= '1' && lexer->lookahead <= '5')) {
-    return register_token(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
   }
 
   advance(lexer);
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return register_token(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
     }
     advance(lexer);
   }
 
-  return register_token(lexer, scanner, valid_symbols, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
+  return register_block(lexer, scanner, valid_symbols, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
 }
 
 static bool is_hex_digit(char c) {
@@ -344,25 +344,25 @@ static bool consume_single_color(TSLexer *lexer) {
 }
 
 static bool consume_color_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  if (!consume_single_color(lexer)) return register_token(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
 
   if (lexer->lookahead == ',') {
     advance(lexer);
     if (lexer->lookahead != '#') {
-      return register_token(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
     }
     advance(lexer);
-    if (!consume_single_color(lexer)) return register_token(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
   }
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return register_token(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
     }
     advance(lexer);
   }
 
-  return register_token(lexer, scanner, valid_symbols, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
+  return register_block(lexer, scanner, valid_symbols, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
 }
 
 static uint8_t match_heading_token(TSLexer *lexer, bool preserve_start) {
@@ -533,8 +533,8 @@ static bool consume_argument(TSLexer *lexer) {
 }
 
 static bool register_bracket_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  if (scanner->depth > 0 && valid_symbols[BRACKET_IMPLICIT_END]) {
-    scanner->depth--;
+  if (scanner->block_depth > 0 && valid_symbols[BRACKET_IMPLICIT_END]) {
+    scanner->block_depth--;
     lexer->result_symbol = BRACKET_IMPLICIT_END;
     return true;
   }
@@ -658,7 +658,7 @@ void tree_sitter_namumark_external_scanner_destroy(void *payload) {
 unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *buffer) {
   Scanner *scanner = (Scanner *)payload;
   uint32_t format_count;
-  if (scanner->depth > UINT8_MAX || scanner->link_depth > UINT8_MAX ||
+  if (scanner->block_depth > UINT8_MAX || scanner->link_depth > UINT8_MAX ||
       !get_format_index(scanner, &format_count)) return 0;
   format_count++;
 
@@ -668,9 +668,9 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   buffer[size++] = (char)scanner->in_macro;
   buffer[size++] = (char)scanner->in_argument;
   buffer[size++] = (char)scanner->link_depth;
-  buffer[size++] = (char)scanner->depth;
-  for (uint32_t i = 0; i < scanner->depth; i++) {
-    buffer[size++] = (char)scanner->stack[i];
+  buffer[size++] = (char)scanner->block_depth;
+  for (uint32_t i = 0; i < scanner->block_depth; i++) {
+    buffer[size++] = (char)scanner->block_stack[i];
   }
   for (uint32_t i = 0; i < format_count; i++) {
     buffer[size++] = (char)scanner->format_stack[i];
@@ -680,14 +680,14 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
 
 void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
   Scanner *scanner = (Scanner *)payload;
-  memset(scanner->stack, 0, sizeof scanner->stack);
+  memset(scanner->block_stack, 0, sizeof scanner->block_stack);
   memset(scanner->format_stack, 0, sizeof scanner->format_stack);
   scanner->heading_level = 0;
   scanner->is_hidden_heading = false;
   scanner->in_macro = false;
   scanner->in_argument = false;
   scanner->link_depth = 0;
-  scanner->depth = 0;
+  scanner->block_depth = 0;
 
   if (buffer == NULL || length < SERIALIZED_HEADER_SIZE) return;
 
@@ -698,16 +698,16 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->in_macro = data[size++] != 0;
   scanner->in_argument = data[size++] != 0;
   uint32_t saved_link_depth = data[size++];
-  uint32_t saved_depth = data[size++];
+  uint32_t saved_block_depth = data[size++];
 
-  if (saved_depth > sizeof scanner->stack || length - size < saved_depth) return;
+  if (saved_block_depth > sizeof scanner->block_stack || length - size < saved_block_depth) return;
 
-  scanner->depth = saved_depth;
-  for (uint32_t i = 0; i < scanner->depth; i++) {
-    scanner->stack[i] = (uint8_t)buffer[size++];
+  scanner->block_depth = saved_block_depth;
+  for (uint32_t i = 0; i < scanner->block_depth; i++) {
+    scanner->block_stack[i] = (uint8_t)buffer[size++];
   }
 
-  uint32_t format_count = saved_depth + saved_link_depth + 1;
+  uint32_t format_count = saved_block_depth + saved_link_depth + 1;
   if (format_count > FORMAT_STACK_SIZE || length - size < format_count) return;
 
   scanner->link_depth = saved_link_depth;
@@ -720,7 +720,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 
 bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
-  uint8_t top_type = scanner->depth > 0 ? scanner->stack[scanner->depth - 1] : 255;
+  uint8_t top_type = scanner->block_depth > 0 ? scanner->block_stack[scanner->block_depth - 1] : 255;
 
   // 문서 끝에 도달하면 모두 강제 종료
   if (lexer->eof(lexer)) {
@@ -742,7 +742,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
   }
 
   // bracket_end 처리
-  if (lexer->lookahead == '}' && scanner->depth > 0) {
+  if (lexer->lookahead == '}' && scanner->block_depth > 0) {
     lexer->mark_end(lexer);
     if (consume_string(lexer, "}}}")) {
       if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
@@ -751,7 +751,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
       lexer->mark_end(lexer);
-      scanner->depth--;
+      scanner->block_depth--;
       lexer->result_symbol = BRACKET_END;
       return true;
     }
@@ -957,22 +957,22 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
             }
             if (consume_string(lexer, "tyle")) {
               if (!consume_newline(lexer)) {
-                return register_token(lexer, scanner, valid_symbols, STYLE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+                return register_block(lexer, scanner, valid_symbols, STYLE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
               }
-              return register_token(lexer, scanner, valid_symbols, STYLE_BLOCK_START, BLOCK_TYPE_STYLE);
+              return register_block(lexer, scanner, valid_symbols, STYLE_BLOCK_START, BLOCK_TYPE_STYLE);
             }
           }
           if (consume_string(lexer, "wiki")) {
             return consume_depth_block(lexer, scanner, valid_symbols, WIKI_BLOCK_START, BLOCK_TYPE_WIKI, false);
           }
           if (consume_string(lexer, "html")) {
-            return register_token(lexer, scanner, valid_symbols, HTML_BLOCK_START, BLOCK_TYPE_HTML);
+            return register_block(lexer, scanner, valid_symbols, HTML_BLOCK_START, BLOCK_TYPE_HTML);
           }
           if (consume_string(lexer, "latex")) {
             if (!consume_newline(lexer)) {
-                return register_token(lexer, scanner, valid_symbols, LATEX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+                return register_block(lexer, scanner, valid_symbols, LATEX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
               }
-              return register_token(lexer, scanner, valid_symbols, LATEX_BLOCK_START, BLOCK_TYPE_LATEX);
+              return register_block(lexer, scanner, valid_symbols, LATEX_BLOCK_START, BLOCK_TYPE_LATEX);
           }
         } 
         // color_block_start 처리
@@ -988,7 +988,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       }
 
       // 모두 아닐 경우 nowiki_start 처리
-      return register_token(lexer, scanner, valid_symbols, NOWIKI_START, BLOCK_TYPE_NOWIKI);
+      return register_block(lexer, scanner, valid_symbols, NOWIKI_START, BLOCK_TYPE_NOWIKI);
     }
   }
 
