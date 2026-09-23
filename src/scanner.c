@@ -642,6 +642,8 @@ static bool consume_format(TSLexer *lexer, Scanner *scanner, const bool *valid_s
     lexer->result_symbol = END_TOKEN_TYPE;
     return true;
   }
+
+  return false;
 }
 // --- Lifecycle 함수들 ---
 
