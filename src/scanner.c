@@ -14,8 +14,8 @@
 #define FLAG_ITALIC      (1 << 1) // 0x02 (0000 0010)
 #define FLAG_STRIKE      (1 << 2) // 0x04 (0000 0100)
 #define FLAG_STRIKE2     (1 << 3) // 0x08 (0000 1000)
-#define FLAG_SUP         (1 << 4) // 0x10 (0001 0000)
-#define FLAG_SUB         (1 << 5) // 0x20 (0010 0000)
+#define FLAG_SUPERSCRIPT (1 << 4) // 0x10 (0001 0000)
+#define FLAG_SUBSCRIPT   (1 << 5) // 0x20 (0010 0000)
 #define FLAG_UNDERLINE   (1 << 6) // 0x40 (0100 0000)
 
 enum TokenType {
@@ -76,6 +76,15 @@ enum TokenType {
   STRIKE2_START,
   STRIKE2_END,
   STRIKE2_IMPLICIT_END,
+  SUPERSCRIPT_START,
+  SUPERSCRIPT_END,
+  SUPERSCRIPT_IMPLICIT_END,
+  SUBSCRIPT_START,
+  SUBSCRIPT_END,
+  SUBSCRIPT_IMPLICIT_END,
+  UNDERLINE_START,
+  UNDERLINE_END,
+  UNDERLINE_IMPLICIT_END
 };
 
 enum BlockType {
@@ -571,12 +580,24 @@ static bool register_strike_implicit_end(TSLexer *lexer, Scanner *scanner, const
 static bool register_strike2_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   return register_format_implicit_end(lexer, scanner, valid_symbols, FLAG_STRIKE2, STRIKE2_IMPLICIT_END);
 }
+static bool register_superscript_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  return register_format_implicit_end(lexer, scanner, valid_symbols, FLAG_SUPERSCRIPT, SUPERSCRIPT_IMPLICIT_END);
+}
+static bool register_subscript_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  return register_format_implicit_end(lexer, scanner, valid_symbols, FLAG_SUBSCRIPT, SUBSCRIPT_IMPLICIT_END);
+}
+static bool register_underline_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  return register_format_implicit_end(lexer, scanner, valid_symbols, FLAG_UNDERLINE, UNDERLINE_IMPLICIT_END);
+}
 
 static bool close_format_implicit_ends(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t EXCLUDED_FLAG) {
   if (EXCLUDED_FLAG != FLAG_BOLD && register_bold_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_ITALIC && register_italic_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_STRIKE && register_strike_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_STRIKE2 && register_strike2_implicit_end(lexer, scanner, valid_symbols)) return true;
+  if (EXCLUDED_FLAG != FLAG_SUPERSCRIPT && register_superscript_implicit_end(lexer, scanner, valid_symbols)) return true;
+  if (EXCLUDED_FLAG != FLAG_SUBSCRIPT && register_subscript_implicit_end(lexer, scanner, valid_symbols)) return true;
+  if (EXCLUDED_FLAG != FLAG_UNDERLINE && register_underline_implicit_end(lexer, scanner, valid_symbols)) return true;
   return false;
 }
 
@@ -587,7 +608,10 @@ static inline bool should_preserve_heading_start(const Scanner *scanner, const b
          (has_current_style(scanner, FLAG_BOLD) && valid_symbols[BOLD_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_ITALIC) && valid_symbols[ITALIC_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_STRIKE) && valid_symbols[STRIKE_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_STRIKE2) && valid_symbols[STRIKE2_IMPLICIT_END]);
+         (has_current_style(scanner, FLAG_STRIKE2) && valid_symbols[STRIKE2_IMPLICIT_END]) ||
+         (has_current_style(scanner, FLAG_SUPERSCRIPT) && valid_symbols[SUPERSCRIPT_IMPLICIT_END]) ||
+         (has_current_style(scanner, FLAG_SUBSCRIPT) && valid_symbols[SUBSCRIPT_IMPLICIT_END]) ||
+         (has_current_style(scanner, FLAG_UNDERLINE) && valid_symbols[UNDERLINE_IMPLICIT_END]);
 }
 
 static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
@@ -799,6 +823,30 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     lexer->mark_end(lexer);
     if (consume_string(lexer, "~~")) {
       return consume_format(lexer, scanner, valid_symbols, FLAG_STRIKE2, STRIKE2_START);
+    }
+  }
+
+  // superscript 처리
+  if (lexer->lookahead == '^') {
+    lexer->mark_end(lexer);
+    if (consume_string(lexer, "^^")) {
+      return consume_format(lexer, scanner, valid_symbols, FLAG_SUPERSCRIPT, SUPERSCRIPT_START);
+    }
+  }
+
+  // subscript 처리
+  if (lexer->lookahead == ',') {
+    lexer->mark_end(lexer);
+    if (consume_string(lexer, ",,")) {
+      return consume_format(lexer, scanner, valid_symbols, FLAG_SUBSCRIPT, SUBSCRIPT_START);
+    }
+  }
+
+  // underline 처리
+  if (lexer->lookahead == '_') {
+    lexer->mark_end(lexer);
+    if (consume_string(lexer, "__")) {
+      return consume_format(lexer, scanner, valid_symbols, FLAG_UNDERLINE, UNDERLINE_START);
     }
   }
 

@@ -94,6 +94,15 @@ module.exports = grammar({
     $.strike2_start,
     $.strike2_end,
     $.strike2_implicit_end,
+    $.superscript_start,
+    $.superscript_end,
+    $.superscript_implicit_end,
+    $.subscript_start,
+    $.subscript_end,
+    $.subscript_implicit_end,
+    $.underline_start,
+    $.underline_end,
+    $.underline_implicit_end,
   ],
 
   rules: {
@@ -219,6 +228,9 @@ module.exports = grammar({
       $.italic,
       $.strike,
       $.strike2,
+      $.superscript,
+      $.subscript,
+      $.underline,
     ),
     _node_inline: $ => choice(
       $._block_inline,
@@ -233,6 +245,9 @@ module.exports = grammar({
       $.italic_inline,
       $.strike_inline,
       $.strike2_inline,
+      $.superscript_inline,
+      $.subscript_inline,
+      $.underline_inline,
     ),
 
     _block: $ => choice(
@@ -518,6 +533,21 @@ module.exports = grammar({
     strike2_content: $ => repeat1($._node),
     strike2_content_inline: $ => repeat1($._node_inline),
 
+    superscript: $ => seq($.superscript_start, optional(field('content', $.superscript_content)), choice($.superscript_end, $.superscript_implicit_end)),
+    superscript_inline: $ => seq($.superscript_start, optional(field('content', $.superscript_content_inline)), choice($.superscript_end, $.superscript_implicit_end)),
+    superscript_content: $ => repeat1($._node),
+    superscript_content_inline: $ => repeat1($._node_inline),
+    
+    subscript: $ => seq($.subscript_start, optional(field('content', $.subscript_content)), choice($.subscript_end, $.subscript_implicit_end)),
+    subscript_inline: $ => seq($.subscript_start, optional(field('content', $.subscript_content_inline)), choice($.subscript_end, $.subscript_implicit_end)),
+    subscript_content: $ => repeat1($._node),
+    subscript_content_inline: $ => repeat1($._node_inline),
+    
+    underline: $ => seq($.underline_start, optional(field('content', $.underline_content)), choice($.underline_end, $.underline_implicit_end)),
+    underline_inline: $ => seq($.underline_start, optional(field('content', $.underline_content_inline)), choice($.underline_end, $.underline_implicit_end)),
+    underline_content: $ => repeat1($._node),
+    underline_content_inline: $ => repeat1($._node_inline),
+
     _fallback_block: $ => choice(
       $.if_fallback_block,
       $.folding_fallback_block,
@@ -611,7 +641,7 @@ module.exports = grammar({
     argument_name: $ => token(/[\p{L}\p{N}\p{M}_]+/u),
     argument_value: $ => repeat1(
       choice(
-        /[^\n\r@})\]\|'\-\~]+/,
+        /[^\n\r@})\]\|'\-\~\_\^\,]+/,
         prec(-10, token('}')),
         prec(-10, token(')')),
         prec(-10, token(']')),
@@ -619,12 +649,15 @@ module.exports = grammar({
         prec(-10, token('\'')),
         prec(-10, token('-')),
         prec(-10, token('~')),
+        prec(-10, token('_')),
+        prec(-10, token('^')),
+        prec(-10, token(',')),
       )
     ),
 
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@'\-\~]+/,
+      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(-10, token(/\r?\n/)),
@@ -637,9 +670,12 @@ module.exports = grammar({
       prec(-10, token('\'')),
       prec(-10, token('-')),
       prec(-10, token('~')),
+      prec(-10, token('_')),
+      prec(-10, token('^')),
+      prec(-10, token(',')),
     )),
     text_inline: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@'\-\~]+/,
+      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
       prec(-10, token('#')),
       prec(-10, token('=')),
       prec(-10, token('{')),
@@ -651,6 +687,9 @@ module.exports = grammar({
       prec(-10, token('\'')),
       prec(-10, token('-')),
       prec(-10, token('~')),
+      prec(-10, token('_')),
+      prec(-10, token('^')),
+      prec(-10, token(',')),
     )),
   }
 });
