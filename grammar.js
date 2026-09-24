@@ -5,6 +5,8 @@ const requiredArgMacros = ["anchor", "age", "dday", "youtube", "kakaotv", "vimeo
 const optionalArgMacros = ["pagecount", "목차", "tableofcontents"]
 const noArgMacros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
 
+const fileLinkProperties = ["align", "bgcolor", "border-radius", "height", "object-fit", "rendering", "theme", "width"]
+
 /// @ts-ignore
 function fallback_rule($, start_rule) {
   return seq(
@@ -82,6 +84,7 @@ module.exports = grammar({
     $.link_pipe,
     $.link_end,
     $.link_implicit_end,
+    $.file_link_start,
     $.bold_start,
     $.bold_end,
     $.bold_implicit_end,
@@ -224,6 +227,7 @@ module.exports = grammar({
       $.macro,
       $.macro_without_args,
       $.link,
+      $.file_link,
       $.bold,
       $.italic,
       $.strike,
@@ -241,6 +245,7 @@ module.exports = grammar({
       $.macro_inline,
       $.macro_without_args,
       $.link_inline,
+      $.file_link,
       $.bold_inline,
       $.italic_inline,
       $.strike_inline,
@@ -512,6 +517,59 @@ module.exports = grammar({
     ),
     link_display: $ => repeat1($._node),
     link_display_inline: $ => repeat1($._node_inline),
+
+    file_link: $ => seq(
+      $.file_link_start,
+      optional(field('link', $.file_link_link)),
+      optional(seq($.link_pipe, optional(field('attribute', repeat1(seq($.file_link_attribute, optional(token(prec(2, "&"))))))))),
+      choice(
+        $.link_end,
+        $.link_implicit_end
+      )
+    ),
+    file_link_link: $ => repeat1(
+      choice(
+        /[^\]\|\}\=\r\n\\@]+/,
+        $.escape,
+        $.argument,
+        prec(-10, token(']')),
+        prec(-10, token('}')),
+        prec(-10, token('=')),
+        prec(-10, token('@')),
+      )
+    ),
+    file_link_attribute: $ => prec.right(
+      choice(
+        seq(
+          field("name", choice(prec(1, $.file_link_allowed_attribute_name), $.file_link_attribute_name)),
+          optional(token(prec(2, "="))),
+          optional(field("value", $.file_link_attribute_value))
+        )
+      )
+    ),
+    file_link_allowed_attribute_name: $ => choice(...fileLinkProperties),
+    file_link_attribute_name: $ => prec.right(repeat1(
+      choice(
+        /[^\]\|\}\=\r\n\\@\&]+/,
+        $.escape,
+        $.argument,
+        prec(-10, token(']')),
+        prec(-10, token('}')),
+        prec(-10, token('=')),
+        prec(-10, token('@')),
+      )
+    )),
+    file_link_attribute_value: $ => prec.right(repeat1(
+      choice(
+        /[^\]\|\}\=\r\n\\@\&]+/,
+        $.escape,
+        $.argument,
+        prec(-10, token(']')),
+        prec(-10, token('}')),
+        prec(-10, token('=')),
+        prec(-10, token('@')),
+      )
+    )),
 
     bold: $ => seq($.bold_start, optional(field('content', $.bold_content)), choice($.bold_end, $.bold_implicit_end)),
     bold_inline: $ => seq($.bold_start, optional(field('content', $.bold_content_inline)), choice($.bold_end, $.bold_implicit_end)),

@@ -64,6 +64,7 @@ enum TokenType {
   LINK_PIPE,
   LINK_END,
   LINK_IMPLICIT_END,
+  FILE_LINK_START,
   BOLD_START,
   BOLD_END,
   BOLD_IMPLICIT_END,
@@ -157,11 +158,45 @@ static void advance(TSLexer *lexer) {
   lexer->advance(lexer, false);
 }
 
+static uint32_t utf8_decode(const char **p) {
+  const unsigned char *s = (const unsigned char *)*p;
+  uint32_t cp;
+
+  if (s[0] < 0x80) {
+    cp = s[0];
+    *p += 1;
+  } else if ((s[0] & 0xE0) == 0xC0) {
+    cp = ((s[0] & 0x1F) << 6)
+       | (s[1] & 0x3F);
+    *p += 2;
+  } else if ((s[0] & 0xF0) == 0xE0) {
+    cp = ((s[0] & 0x0F) << 12)
+       | ((s[1] & 0x3F) << 6)
+       | (s[2] & 0x3F);
+    *p += 3;
+  } else {
+    cp = ((s[0] & 0x07) << 18)
+       | ((s[1] & 0x3F) << 12)
+       | ((s[2] & 0x3F) << 6)
+       | (s[3] & 0x3F);
+    *p += 4;
+  }
+
+  return cp;
+}
+
 static bool consume_string(TSLexer *lexer, const char *str) {
-  for (const char *c = str; *c != '\0'; c++) {
-    if (lexer->lookahead != *c) return false;
+  const char *p = str;
+
+  while (*p) {
+    uint32_t cp = utf8_decode(&p);
+
+    if (lexer->lookahead != cp)
+      return false;
+
     advance(lexer);
   }
+
   return true;
 }
 
@@ -1018,12 +1053,13 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       advance(lexer);
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
-      if (valid_symbols[LINK_START]) {
+      if (valid_symbols[LINK_START] || valid_symbols[FILE_LINK_START]) {
         lexer->mark_end(lexer);
         scanner->link_depth++;
         uint32_t index;
         if (get_format_index(scanner, &index)) scanner->format_stack[index] = 0;
-        lexer->result_symbol = LINK_START;
+
+        lexer->result_symbol = consume_string(lexer, "파일:") ? FILE_LINK_START : LINK_START;
         return true;
       }
 
