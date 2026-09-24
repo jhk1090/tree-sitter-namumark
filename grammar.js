@@ -630,7 +630,7 @@ module.exports = grammar({
       field('name', $.argument_name),
       optional(
         seq("=", optional(
-          field('value', $.argument_value)
+          field('value', repeat1($.argument_value))
         ))
       ),
       choice(
@@ -639,11 +639,12 @@ module.exports = grammar({
       )
     )),
     argument_name: $ => token(/[\p{L}\p{N}\p{M}_]+/u),
-    argument_value: $ => repeat1(
-      choice(
-        /[^\n\r@})\]\|'\-\~\_\^\,]+/,
+    argument_value: $ => prec(-1, choice(
+        /[^\n\r@{})\[\]\|'\-\~\_\^\,]+/,
+        prec(-10, token('{')),
         prec(-10, token('}')),
         prec(-10, token(')')),
+        prec(-10, token('[')),
         prec(-10, token(']')),
         prec(-10, token('|')),
         prec(-10, token('\'')),

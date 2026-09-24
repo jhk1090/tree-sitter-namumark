@@ -728,6 +728,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
+    return false;
   }
 
   // comment 처리
@@ -755,6 +756,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       lexer->result_symbol = BRACKET_END;
       return true;
     }
+    return false;
   }
 
   // macro_end 처리
@@ -770,6 +772,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         return true;
       }
     }
+    return false;
   }
 
   // link_pipe 처리
@@ -784,6 +787,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         return true;
       }
     }
+    return false;
   }
 
   // link_end 처리
@@ -800,6 +804,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         return true;
       }
     }
+    return false;
   }
 
   if (lexer->lookahead == '\'') {
@@ -814,6 +819,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         return consume_format(lexer, scanner, valid_symbols, FLAG_ITALIC, ITALIC_START);
       }
     }
+    return false;
   }
 
   // strike 처리
@@ -822,6 +828,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     if (consume_string(lexer, "--")) {
       return consume_format(lexer, scanner, valid_symbols, FLAG_STRIKE, STRIKE_START);
     }
+    return false;
   }
 
   // strike2 처리
@@ -830,6 +837,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     if (consume_string(lexer, "~~")) {
       return consume_format(lexer, scanner, valid_symbols, FLAG_STRIKE2, STRIKE2_START);
     }
+    return false;
   }
 
   // superscript 처리
@@ -838,6 +846,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     if (consume_string(lexer, "^^")) {
       return consume_format(lexer, scanner, valid_symbols, FLAG_SUPERSCRIPT, SUPERSCRIPT_START);
     }
+    return false;
   }
 
   // subscript 처리
@@ -846,6 +855,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     if (consume_string(lexer, ",,")) {
       return consume_format(lexer, scanner, valid_symbols, FLAG_SUBSCRIPT, SUBSCRIPT_START);
     }
+    return false;
   }
 
   // underline 처리
@@ -854,6 +864,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     if (consume_string(lexer, "__")) {
       return consume_format(lexer, scanner, valid_symbols, FLAG_UNDERLINE, UNDERLINE_START);
     }
+    return false;
   }
 
   // newline 시 허용하지 않는 문법 강제 종료 처리
@@ -865,6 +876,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     advance(lexer);
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
+    return false;
   }
 
   // argument_end 처리
@@ -901,6 +913,7 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       lexer->result_symbol = HEADING_END;
       return true;
     }
+    return false;
   }
 
   // heading_start 처리
@@ -931,11 +944,15 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       lexer->result_symbol = heading_token;
       return true;
     }
+    return false;
   }
 
   // block류 매칭
   if (lexer->lookahead == '{') {
+    lexer->mark_end(lexer);
     if (consume_string(lexer, "{{{")) {
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
+      
       lexer->mark_end(lexer);
 
       if (lexer->lookahead == '#') {
@@ -990,16 +1007,19 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
       // 모두 아닐 경우 nowiki_start 처리
       return register_block(lexer, scanner, valid_symbols, NOWIKI_START, BLOCK_TYPE_NOWIKI);
     }
+    return false;
   }
 
   if (lexer->lookahead == '[') {
-    advance(lexer);
     lexer->mark_end(lexer);
+    advance(lexer);
     // link_start 처리
     if (lexer->lookahead == '[') {
       advance(lexer);
-      lexer->mark_end(lexer);
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
+
       if (valid_symbols[LINK_START]) {
+        lexer->mark_end(lexer);
         scanner->link_depth++;
         uint32_t index;
         if (get_format_index(scanner, &index)) scanner->format_stack[index] = 0;
@@ -1009,12 +1029,16 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
     }
     // macro_start 처리
     if (valid_symbols[MACRO_START] && consume_macro(lexer)) {
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
+
       if (lexer->lookahead == '(') {
+        lexer->mark_end(lexer);
         scanner->in_macro = true;
         lexer->result_symbol = MACRO_START;
         return true;
       }
     }
+    return false;
   }
 
   // argument_start 처리
