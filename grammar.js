@@ -640,7 +640,7 @@ module.exports = grammar({
     )),
     argument_name: $ => token(/[\p{L}\p{N}\p{M}_]+/u),
     argument_value: $ => prec(-1, choice(
-        /[^\n\r@{})\[\]\|'\-\~\_\^\,]+/,
+        /[^\n\r@{})\[\]\|'\-\~\_\^\,\\]+/,
         prec(-10, token('{')),
         prec(-10, token('}')),
         prec(-10, token(')')),
@@ -653,6 +653,7 @@ module.exports = grammar({
         prec(-10, token('_')),
         prec(-10, token('^')),
         prec(-10, token(',')),
+        token(/\\[^@]/), // argument는 @만을 제외한 escape 사용
       )
     ),
 
