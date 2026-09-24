@@ -1026,18 +1026,24 @@ bool tree_sitter_namumark_external_scanner_scan(void *payload, TSLexer *lexer, c
         lexer->result_symbol = LINK_START;
         return true;
       }
+
+      return false;
     }
     // macro_start 처리
-    if (valid_symbols[MACRO_START] && consume_macro(lexer)) {
+    if (!(scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END])) {
+      lexer->mark_end(lexer);
+    }
+
+    if (consume_macro(lexer) && lexer->lookahead == '(') {
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
-      if (lexer->lookahead == '(') {
-        lexer->mark_end(lexer);
+      if (valid_symbols[MACRO_START]) {
         scanner->in_macro = true;
         lexer->result_symbol = MACRO_START;
         return true;
       }
     }
+
     return false;
   }
 
