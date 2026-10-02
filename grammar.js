@@ -1,11 +1,11 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-const requiredArgMacros = ["anchor", "age", "dday", "youtube", "kakaotv", "vimeo", "nicovideo", "navertv", "math", "include", "ruby"]
-const optionalArgMacros = ["pagecount", "목차", "tableofcontents"]
-const noArgMacros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
+const required_arg_macros = ["anchor", "age", "dday", "youtube", "kakaotv", "vimeo", "nicovideo", "navertv", "math", "include", "ruby"]
+const optional_arg_macros = ["pagecount", "목차", "tableofcontents"]
+const no_arg_macros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
 
-const fileLinkProperties = ["align", "bgcolor", "border-radius", "height", "object-fit", "rendering", "theme", "width"]
+const file_link_properties = ["align", "bgcolor", "border-radius", "height", "object-fit", "rendering", "theme", "width"]
 
 /// @ts-ignore
 function fallback_rule($, start_rule) {
@@ -242,7 +242,7 @@ module.exports = grammar({
       $.argument,
       $.escape,
       $.text_inline,
-      $.macro_inline,
+      $.macro,
       $.macro_without_args,
       $.link_inline,
       $.file_link,
@@ -426,55 +426,52 @@ module.exports = grammar({
     ),
     color_color: $ => token(/[^\n\s,]+/),
 
-    required_arg_macro_name: $ => choice(...requiredArgMacros),
-    optional_arg_macro_name: $ => choice(...optionalArgMacros),
-    no_arg_macro_name: $ => choice(...noArgMacros),
+    required_arg_macro_name: $ => choice(...required_arg_macros),
+    optional_arg_macro_name: $ => choice(...optional_arg_macros),
+    no_arg_macro_name: $ => choice(...no_arg_macros),
     _macro_name: $ => choice(
       $.required_arg_macro_name,
       $.optional_arg_macro_name,
       $.no_arg_macro_name
     ),
 
-    macro_without_args: $ => token(new RegExp(`\\[(${[...requiredArgMacros, ...optionalArgMacros, ...noArgMacros].join("|")})\\]`)),
+    macro_without_args: $ => token(new RegExp(`\\[(${[...required_arg_macros, ...optional_arg_macros, ...no_arg_macros].join("|")})\\]`)),
     macro: $ => seq(
       $.macro_start,
       $._macro_name,
       "(",
-      repeat(
-        choice(
-          /[^=)}\\@]+/,
-          $.escape,
-          $.argument,
-          prec(-10, token('=')),
-          prec(-10, token(')')),
-          prec(-10, token('}')),
-          prec(-10, token('@')),
-        )
-      ),
+      optional($.macro_content),
       choice(
         $.macro_end,
         $.macro_implicit_end
       )
     ),
-    macro_inline: $ => seq(
-      $.macro_start,
-      $._macro_name,
-      "(",
-      repeat(
-        choice(
-          /[^=\r\n)\\@]+/,
-          $.escape,
-          $.argument,
-          prec(-10, token('=')),
-          prec(-10, token(')')),
-          prec(-10, token('@')),
-        )
-      ),
-      choice(
-        $.macro_end,
-        $.macro_implicit_end
+    
+    macro_content: $ => repeat1(
+      seq(
+        $.macro_argument,
+        optional(token(prec(2, ",")))
       )
     ),
+    macro_argument: $ => prec.right(
+      seq(
+        field("name", $.macro_argument_field),
+        optional(token(prec(2, "="))),
+        optional(field("value", $.macro_argument_field))
+      )
+    ),
+    macro_argument_field: $ => prec.right(repeat1(
+      choice(
+        /[^\=\r\n\)\]\\@\,]+/,
+        $.escape,
+        $.argument,
+        prec(-10, token(/\r?\n/)),
+        prec(-10, token(')')),
+        prec(-10, token(']')),
+        prec(-10, token('=')),
+        prec(-10, token('@')),
+      )
+    )),
     
     link: $ => seq(
       $.link_start,
@@ -539,27 +536,14 @@ module.exports = grammar({
       )
     ),
     file_link_attribute: $ => prec.right(
-      choice(
-        seq(
-          field("name", choice(prec(1, $.file_link_allowed_attribute_name), $.file_link_attribute_name)),
-          optional(token(prec(2, "="))),
-          optional(field("value", $.file_link_attribute_value))
-        )
+      seq(
+        field("name", choice(prec(1, $.file_link_allowed_attribute_name), $.file_link_attribute_field)),
+        optional(token(prec(2, "="))),
+        optional(field("value", $.file_link_attribute_field))
       )
     ),
-    file_link_allowed_attribute_name: $ => choice(...fileLinkProperties),
-    file_link_attribute_name: $ => prec.right(repeat1(
-      choice(
-        /[^\]\|\}\=\r\n\\@\&]+/,
-        $.escape,
-        $.argument,
-        prec(-10, token(']')),
-        prec(-10, token('}')),
-        prec(-10, token('=')),
-        prec(-10, token('@')),
-      )
-    )),
-    file_link_attribute_value: $ => prec.right(repeat1(
+    file_link_allowed_attribute_name: $ => choice(...file_link_properties),
+    file_link_attribute_field: $ => prec.right(repeat1(
       choice(
         /[^\]\|\}\=\r\n\\@\&]+/,
         $.escape,
