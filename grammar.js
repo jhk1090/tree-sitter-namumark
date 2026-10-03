@@ -31,7 +31,7 @@ function heading_rule($, start_rule) {
     alias(start_rule, $.heading_marker),
     field("title", repeat1($._node_inline)),
     alias($.heading_end, $.heading_marker),
-    /\r?\n/,
+    $._soft_line_ending,
   )
 }
 
@@ -106,6 +106,9 @@ module.exports = grammar({
     $.underline_start,
     $.underline_end,
     $.underline_implicit_end,
+    $._soft_line_ending,
+    $._line_ending,
+    $._eof
   ],
 
   rules: {
@@ -114,7 +117,8 @@ module.exports = grammar({
         alias(prec.right(repeat($._block_not_section)), $.section),
         repeat($.section),
       ),
-    _block_not_section: ($) => $._node,
+    _block_not_section: ($) => seq(repeat1(choice($._line, $._soft_line_ending)), choice($._line_ending, $._eof)),
+    _line: $ => prec.right(repeat1($._node)),
     section: ($) =>
       choice(
         $._section1,
@@ -283,7 +287,7 @@ module.exports = grammar({
       $.if_block_start,
       "#!if",
       optional(field('expression', $.if_block_header)),
-      token.immediate(/\r?\n/),
+      $._soft_line_ending,
       optional($.block_content),
       $._block_end
     ),
@@ -293,7 +297,7 @@ module.exports = grammar({
       $.folding_block_start,
       "#!folding",
       optional(field('text', $.block_header)),
-      token.immediate(/\r?\n/),
+      $._soft_line_ending,
       optional($.block_content),
       $._block_end
     ),
@@ -302,7 +306,7 @@ module.exports = grammar({
       $.syntax_block_start,
       "#!syntax",
       field('language', $.block_header),
-      token.immediate(/\r?\n/),
+      $._soft_line_ending,
       optional(field('content', $.nowiki_content)),
       $._block_end
     ),
@@ -323,7 +327,7 @@ module.exports = grammar({
     style_block: $ => seq(
       $.style_block_start,
       "#!style",
-      /\r?\n/,
+      $._soft_line_ending,
       optional(field('content', $.nowiki_content)),
       $._block_end
     ),
@@ -331,7 +335,7 @@ module.exports = grammar({
     latex_block: $ => seq(
       $.latex_block_start,
       "#!latex",
-      /\r?\n/,
+      $._soft_line_ending,
       optional(field('content', $.nowiki_content)),
       $._block_end
     ),
@@ -340,10 +344,11 @@ module.exports = grammar({
       $.wiki_block_start,
       "#!wiki",
       optional($.wiki_block_header),
-      token.immediate(/\r?\n/),
-      optional($.block_content),
+      $._soft_line_ending,
+      optional($.wiki_block_content),
       $._block_end
     ),
+    wiki_block_content: $ => repeat1(choice($._node, $._soft_line_ending)),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
       prec(1, token(/[^\r\n@= ]+/)),
@@ -391,7 +396,7 @@ module.exports = grammar({
     scale_block: $ => seq(
       $.scale_block_start,
       field("size", $.scale_size),
-      /\r?\n| /,
+      choice($._soft_line_ending, " "),
       optional($.block_content),
       $._block_end
     ),
@@ -410,7 +415,7 @@ module.exports = grammar({
       optional(
         seq(",", field('color2', $.color_color))
       ),
-      /\r?\n| /,
+      choice($._soft_line_ending, " "),
       optional($.block_content),
       $._block_end
     ),
@@ -465,7 +470,7 @@ module.exports = grammar({
         /[^\=\r\n\)\]\\@\,]+/,
         $.escape,
         $.argument,
-        prec(-10, token(/\r?\n/)),
+        prec(1, $._soft_line_ending),
         prec(-10, token(')')),
         prec(-10, token(']')),
         prec(-10, token('=')),
@@ -647,7 +652,7 @@ module.exports = grammar({
         /[^{}=#\r\n@]+/,
         prec(-10, token('=')),
         prec(-10, token('#')),
-        prec(-10, token(/\r?\n/)),
+        prec(1, $._soft_line_ending),
         prec(-10, token('{')),
         prec(-10, token('}')),
         prec(-10, token('@')),
@@ -704,7 +709,7 @@ module.exports = grammar({
       /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
       prec(-10, token('=')),
       prec(-10, token('#')),
-      prec(-10, token(/\r?\n/)),
+      prec(1, $._soft_line_ending),
       prec(-10, token('{')),
       prec(-10, token('}')),
       prec(-10, token('[')),
