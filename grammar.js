@@ -122,7 +122,7 @@ module.exports = grammar({
         $.heading,
         repeat(
           choice(
-            $.section,
+            seq($.section, choice($._line_ending, $._eof)),
             $._node
           )
         )
