@@ -9,6 +9,10 @@
 
 #define NO_HEADING_TOKEN 0
 
+#define STATUS_NO_HEADING_SECTION 0
+#define STATUS_MATCH_HEADING 1
+#define STATUS_HEADING_SECTION 2
+
 #define FLAG_NONE        0
 #define FLAG_BOLD        (1 << 0) // 0x01 (0000 0001)
 #define FLAG_ITALIC      (1 << 1) // 0x02 (0000 0010)
@@ -90,6 +94,7 @@ enum TokenType {
   UNDERLINE_START,
   UNDERLINE_END,
   UNDERLINE_IMPLICIT_END,
+  SOFT_LINE_PREFIX,
   SOFT_LINE_ENDING,
   LINE_ENDING,
   TOKEN_EOF
@@ -114,6 +119,8 @@ typedef struct {
   bool in_macro;
   bool in_argument;
   uint8_t heading_level;
+  uint8_t heading_status;
+  uint8_t heading_levels;
   bool is_hidden_heading;
   uint32_t link_depth;
   uint32_t block_depth;
@@ -735,6 +742,8 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
 
   size_t size = 0;
   buffer[size++] = (char)scanner->heading_level;
+  buffer[size++] = (char)scanner->heading_status;
+  buffer[size++] = (char)scanner->heading_levels;
   buffer[size++] = (char)scanner->is_hidden_heading;
   buffer[size++] = (char)scanner->in_macro;
   buffer[size++] = (char)scanner->in_argument;
@@ -755,6 +764,8 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   memset(scanner->block_stack, 0, sizeof scanner->block_stack);
   memset(scanner->format_stack, 0, sizeof scanner->format_stack);
   scanner->heading_level = 0;
+  scanner->heading_status = STATUS_NO_HEADING_SECTION;
+  scanner->heading_levels = 0;
   scanner->is_hidden_heading = false;
   scanner->in_macro = false;
   scanner->in_argument = false;
@@ -767,6 +778,8 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   const unsigned char *data = (const unsigned char *)buffer;
   size_t size = 0;
   scanner->heading_level = data[size++];
+  scanner->heading_status = data[size++];
+  scanner->heading_levels = data[size++];
   scanner->is_hidden_heading = data[size++] != 0;
   scanner->in_macro = data[size++] != 0;
   scanner->in_argument = data[size++] != 0;
@@ -795,6 +808,19 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->block_depth > 0 ? scanner->block_stack[scanner->block_depth - 1] : BLOCK_TYPE_NONE;
+
+  bool is_breakable_bracket = false;
+  switch (top_type) {
+      case BLOCK_TYPE_IF:
+      case BLOCK_TYPE_FOLDING:
+      case BLOCK_TYPE_WIKI:
+      case BLOCK_TYPE_SCALE:
+      case BLOCK_TYPE_COLOR:
+      case BLOCK_TYPE_FALLBACK:
+        is_breakable_bracket = true;
+        break;
+      default: break;
+  }
 
   // 문서 끝에 도달하면 모두 강제 종료
   if (lexer->eof(lexer)) {
@@ -958,34 +984,49 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
-    if (!valid_symbols[BRACKET_IMPLICIT_END] && !valid_symbols[LINE_ENDING]) {
+    if (valid_symbols[SOFT_LINE_ENDING]) {
+      // fprintf(stderr, "------ soft_line_ending\n");
       mark_end(scanner, lexer);
+      lexer->result_symbol = SOFT_LINE_ENDING;
+      return true;
     }
 
     scanner->simulate = FLAG_SIMULATE_HEADING;
     uint8_t heading_token = match_heading_token(lexer, scanner, false);
     scanner->simulate = FLAG_NONE;
-    // fprintf(stderr, "------ heading_token: %d (v: line_ending: %d, bracket_implicit_end: %d)\n", heading_token, valid_symbols[LINE_ENDING], valid_symbols[BRACKET_IMPLICIT_END]);
+    
+    if (heading_token != NO_HEADING_TOKEN && (top_type == BLOCK_TYPE_NONE || is_breakable_bracket)) {
+      uint8_t heading_level_offset = heading_token - HEADING1_START + 1;
+      uint8_t heading_level = heading_level_offset > 6 ? heading_level_offset - 6 : heading_level_offset;
 
-    if (heading_token != NO_HEADING_TOKEN) {
       if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) {
         // fprintf(stderr, "------ bracket_implicit_end\n");
         return true;
       }
+
       if (valid_symbols[LINE_ENDING]) {
-        // fprintf(stderr, "------ line_ending\n");
+        if (scanner->heading_level < heading_level && scanner->heading_level != STATUS_NO_HEADING_SECTION && valid_symbols[SOFT_LINE_PREFIX]) {
+          lexer->result_symbol = SOFT_LINE_PREFIX;
+          // fprintf(stderr, "------ RESET! = true\n");
+          return true;
+        }
+
+        for (int i = 5; i >= 0; i--) {
+          if (scanner->heading_levels & (1 << i)) {
+            scanner->heading_levels &= ~(1 << (scanner->heading_level - 1));  
+            scanner->heading_level = i + 1;
+            break;
+          }
+        }
+        // fprintf(stderr, "------ line_ending (heading_level: next: %d, current: %d)\n", heading_level, scanner->heading_level);
         lexer->result_symbol = LINE_ENDING;
         return true;
       }
-      // fprintf(stderr, "------ NO!\n");
     }
 
-    if (valid_symbols[SOFT_LINE_ENDING]) {
-      // fprintf(stderr, "------ soft_line_ending\n");
-      if (heading_token == NO_HEADING_TOKEN) {
-        mark_end(scanner, lexer);
-      }
-      lexer->result_symbol = SOFT_LINE_ENDING;
+    if (valid_symbols[SOFT_LINE_PREFIX]) {
+      // fprintf(stderr, "------ prefix\n");
+      lexer->result_symbol = SOFT_LINE_PREFIX;
       return true;
     }
 
@@ -1001,8 +1042,28 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return true;
   }
 
+  // heading_start 처리
+  if (scanner->heading_status != STATUS_MATCH_HEADING && (top_type == BLOCK_TYPE_NONE || is_breakable_bracket)) {
+    uint8_t heading_token = match_heading_token(lexer, scanner, should_preserve_heading_start(scanner, valid_symbols, is_breakable_bracket));
+    if (heading_token != NO_HEADING_TOKEN) {
+      if (valid_symbols[heading_token]) {
+        uint8_t offset = heading_token - HEADING1_START + 1;
+        
+        if (scanner->simulate == FLAG_NONE) {
+          scanner->heading_level = offset > 6 ? offset - 6 : offset;
+          scanner->heading_status = STATUS_MATCH_HEADING;
+          scanner->heading_levels |= 1 << (scanner->heading_level - 1);
+          scanner->is_hidden_heading = offset > 6;
+          lexer->result_symbol = heading_token;
+        }
+        return true;
+      }
+      return false;
+    }
+  }
+
   // heading_end 처리
-  if (scanner->heading_level > 0 && (lexer->lookahead == '#' || lexer->lookahead == '=')) {
+  if (scanner->heading_status == STATUS_MATCH_HEADING && (lexer->lookahead == '#' || lexer->lookahead == '=')) {
     char heading_end_string[100];
     const char *heading_prefix = scanner->is_hidden_heading ? "#" : "";
     strncpy(heading_end_string, heading_prefix, sizeof(heading_end_string) - 1);
@@ -1026,45 +1087,13 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (valid_symbols[HEADING_END]) {
         mark_end(scanner, lexer);
         if (scanner->simulate == FLAG_NONE) {
-          scanner->heading_level = 0;
-          scanner->is_hidden_heading = false;
+          scanner->heading_status = STATUS_HEADING_SECTION;
           lexer->result_symbol = HEADING_END;
         }
         return true;
       }
     }
     return false;
-  }
-
-  // heading_start 처리
-  bool is_breakable_bracket = false;
-  switch (top_type) {
-      case BLOCK_TYPE_IF:
-      case BLOCK_TYPE_FOLDING:
-      case BLOCK_TYPE_WIKI:
-      case BLOCK_TYPE_SCALE:
-      case BLOCK_TYPE_COLOR:
-      case BLOCK_TYPE_FALLBACK:
-        is_breakable_bracket = true;
-        break;
-      default: break;
-  }
-
-  if (top_type == BLOCK_TYPE_NONE || is_breakable_bracket) {
-    uint8_t heading_token = match_heading_token(lexer, scanner, should_preserve_heading_start(scanner, valid_symbols, is_breakable_bracket));
-    if (heading_token != NO_HEADING_TOKEN) {
-      if (valid_symbols[heading_token]) {
-        uint8_t offset = heading_token - HEADING1_START + 1;
-        
-        if (scanner->simulate == FLAG_NONE) {
-          scanner->heading_level = offset > 6 ? offset - 6 : offset;
-          scanner->is_hidden_heading = offset > 6;
-          lexer->result_symbol = heading_token;
-        }
-        return true;
-      }
-      return false;
-    }
   }
 
   // block류 매칭

@@ -105,6 +105,7 @@ module.exports = grammar({
     $.underline_start,
     $.underline_end,
     $.underline_implicit_end,
+    $._soft_line_prefix,
     $._soft_line_ending,
     $._line_ending,
     $._eof,
@@ -113,8 +114,8 @@ module.exports = grammar({
   rules: {
     source_file: ($) =>
       seq(
-        optional(seq(alias(repeat1($._node), $.section), choice(seq($._line_ending, $._soft_line_ending), $._eof))),
-        repeat(seq($.section, choice(seq($._line_ending, $._soft_line_ending), $._eof))),
+        optional(seq(alias(repeat1($._node), $.section), choice(seq($._line_ending, $._newline), $._eof))),
+        repeat(seq($.section, choice(seq($._line_ending, $._newline), $._eof))),
       ),
     section: $ => prec.right(
       seq(
@@ -212,7 +213,7 @@ module.exports = grammar({
       $.if_block_start,
       "#!if",
       optional(field('expression', $.if_block_header)),
-      $._soft_line_ending,
+      $._newline,
       optional($.block_content),
       $._block_end
     ),
@@ -222,7 +223,7 @@ module.exports = grammar({
       $.folding_block_start,
       "#!folding",
       optional(field('text', $.block_header)),
-      $._soft_line_ending,
+      $._newline,
       optional($.block_content),
       $._block_end
     ),
@@ -231,7 +232,7 @@ module.exports = grammar({
       $.syntax_block_start,
       "#!syntax",
       field('language', $.block_header),
-      $._soft_line_ending,
+      $._newline,
       optional(field('content', $.nowiki_content)),
       $._block_end
     ),
@@ -252,7 +253,7 @@ module.exports = grammar({
     style_block: $ => seq(
       $.style_block_start,
       "#!style",
-      $._soft_line_ending,
+      $._newline,
       optional(field('content', $.nowiki_content)),
       $._block_end
     ),
@@ -260,7 +261,7 @@ module.exports = grammar({
     latex_block: $ => seq(
       $.latex_block_start,
       "#!latex",
-      $._soft_line_ending,
+      $._newline,
       optional(field('content', $.nowiki_content)),
       $._block_end
     ),
@@ -269,11 +270,11 @@ module.exports = grammar({
       $.wiki_block_start,
       "#!wiki",
       optional($.wiki_block_header),
-      $._soft_line_ending,
+      $._newline,
       optional($.wiki_block_content),
       $._block_end
     ),
-    wiki_block_content: $ => repeat1(choice($._node, $._soft_line_ending)),
+    wiki_block_content: $ => repeat1(choice($._node, $._newline)),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
       prec(1, token(/[^\r\n@= ]+/)),
@@ -321,7 +322,7 @@ module.exports = grammar({
     scale_block: $ => seq(
       $.scale_block_start,
       field("size", $.scale_size),
-      choice($._soft_line_ending, " "),
+      choice($._newline, " "),
       optional($.block_content),
       $._block_end
     ),
@@ -340,7 +341,7 @@ module.exports = grammar({
       optional(
         seq(",", field('color2', $.color_color))
       ),
-      choice($._soft_line_ending, " "),
+      choice($._newline, " "),
       optional($.block_content),
       $._block_end
     ),
@@ -395,7 +396,7 @@ module.exports = grammar({
         /[^\=\r\n\)\]\\@\,]+/,
         $.escape,
         $.argument,
-        prec(1, $._soft_line_ending),
+        prec(1, $._newline),
         prec(-10, token(')')),
         prec(-10, token(']')),
         prec(-10, token('=')),
@@ -577,7 +578,7 @@ module.exports = grammar({
         /[^{}=#\r\n@]+/,
         prec(-10, token('=')),
         prec(-10, token('#')),
-        prec(1, $._soft_line_ending),
+        prec(1, $._newline),
         prec(-10, token('{')),
         prec(-10, token('}')),
         prec(-10, token('@')),
@@ -629,12 +630,16 @@ module.exports = grammar({
       )
     ),
 
+    _newline: $ => seq(
+      $._soft_line_prefix,
+      $._soft_line_ending
+    ),
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
       prec(-10, token('=')),
       prec(-10, token('#')),
-      prec(1, $._soft_line_ending),
+      prec(1, $._newline),
       prec(-10, token('{')),
       prec(-10, token('}')),
       prec(-10, token('[')),
