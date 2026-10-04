@@ -96,6 +96,9 @@ enum TokenType {
   UNDERLINE_START,
   UNDERLINE_END,
   UNDERLINE_IMPLICIT_END,
+  FOOTNOTE_START,
+  FOOTNOTE_END,
+  FOOTNOTE_IMPLICIT_END,
   SOFT_LINE_PREFIX,
   SOFT_LINE_ENDING,
   LINE_ENDING,
@@ -126,6 +129,7 @@ typedef struct {
   bool is_hidden_heading;
   uint8_t cached_heading_token;
   uint32_t link_depth;
+  uint32_t footnote_depth;
   uint32_t block_depth;
   uint8_t simulate;
   uint8_t block_stack[256];
@@ -139,10 +143,12 @@ enum {
 
 // --- Helper 함수들 ---
 static inline bool get_format_index(const Scanner *scanner, uint32_t *index) {
-  if (scanner->block_depth >= FORMAT_STACK_SIZE || scanner->link_depth >= FORMAT_STACK_SIZE - scanner->block_depth) {
+  if (scanner->block_depth >= FORMAT_STACK_SIZE 
+    || scanner->link_depth >= FORMAT_STACK_SIZE - scanner->block_depth 
+    || scanner->footnote_depth >= FORMAT_STACK_SIZE - scanner->block_depth - scanner->link_depth) {
     return false;
   }
-  *index = scanner->block_depth + scanner->link_depth;
+  *index = scanner->block_depth + scanner->link_depth + scanner->footnote_depth;
   return true;
 }
 
@@ -646,6 +652,15 @@ static bool register_link_implicit_end(TSLexer *lexer, Scanner *scanner, const b
   return false;
 }
 
+static bool register_footnote_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (scanner->footnote_depth > 0 && valid_symbols[FOOTNOTE_IMPLICIT_END]) {
+    scanner->footnote_depth--;
+    lexer->result_symbol = FOOTNOTE_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
+
 static bool register_format_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t FLAG, uint8_t TOKEN_TYPE) {
   if (has_current_style(scanner, FLAG) && valid_symbols[TOKEN_TYPE]) {
     clear_current_style(scanner, FLAG);
@@ -692,6 +707,7 @@ static inline bool should_preserve_heading_start(const Scanner *scanner, const b
   return (is_breakable_bracket) ||
          (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) ||
          (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) ||
+         (scanner->footnote_depth > 0 && valid_symbols[FOOTNOTE_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_BOLD) && valid_symbols[BOLD_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_ITALIC) && valid_symbols[ITALIC_IMPLICIT_END]) ||
          (has_current_style(scanner, FLAG_STRIKE) && valid_symbols[STRIKE_IMPLICIT_END]) ||
@@ -759,6 +775,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   buffer[size++] = (char)scanner->in_argument;
   buffer[size++] = (char)scanner->simulate;
   buffer[size++] = (char)scanner->link_depth;
+  buffer[size++] = (char)scanner->footnote_depth;
   buffer[size++] = (char)scanner->block_depth;
   for (uint32_t i = 0; i < scanner->block_depth; i++) {
     buffer[size++] = (char)scanner->block_stack[i];
@@ -782,6 +799,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->in_argument = false;
   scanner->simulate = FLAG_NONE;
   scanner->link_depth = 0;
+  scanner->footnote_depth = 0;
   scanner->block_depth = 0;
 
   if (buffer == NULL || length < SERIALIZED_HEADER_SIZE) return;
@@ -797,6 +815,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->in_argument = data[size++] != 0;
   scanner->simulate = data[size++];
   uint32_t saved_link_depth = data[size++];
+  uint32_t saved_footnote_depth = data[size++];
   uint32_t saved_block_depth = data[size++];
 
   if (saved_block_depth > sizeof scanner->block_stack || length - size < saved_block_depth) return;
@@ -806,10 +825,11 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
     scanner->block_stack[i] = (uint8_t)buffer[size++];
   }
 
-  uint32_t format_count = saved_block_depth + saved_link_depth + 1;
+  uint32_t format_count = saved_block_depth + saved_link_depth + saved_footnote_depth + 1;
   if (format_count > FORMAT_STACK_SIZE || length - size < format_count) return;
 
   scanner->link_depth = saved_link_depth;
+  scanner->footnote_depth = saved_footnote_depth;
   for (uint32_t i = 0; i < format_count; i++) {
     scanner->format_stack[i] = (uint8_t)buffer[size++];
   }
@@ -838,6 +858,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
     if (valid_symbols[TOKEN_EOF]) {
@@ -864,6 +885,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (consume_string(lexer, "}}}")) {
       if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
@@ -908,10 +930,26 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return false;
   }
 
-  // link_end 처리
-  if (scanner->simulate == FLAG_NONE && lexer->lookahead == ']' && scanner->link_depth > 0) {
+  if (scanner->simulate == FLAG_NONE && lexer->lookahead == ']') {
     mark_end(scanner, lexer);
-    if (consume_string(lexer, "]]")) {
+    advance(lexer);
+
+    // footnote_end 처리
+    if (scanner->footnote_depth > 0) {
+      if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
+
+      if (valid_symbols[FOOTNOTE_END]) {
+        mark_end(scanner, lexer);
+        scanner->footnote_depth--;
+        lexer->result_symbol = FOOTNOTE_END;
+        return true;
+      }
+    }
+
+    // link_end 처리
+    if (scanner->link_depth > 0 && lexer->lookahead == ']') {
+      advance(lexer);
       if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
@@ -921,6 +959,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         lexer->result_symbol = LINK_END;
         return true;
       }
+
+      return false;
     }
     return false;
   }
@@ -993,6 +1033,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     }
     advance(lexer);
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
     if (valid_symbols[SOFT_LINE_ENDING]) {
@@ -1111,6 +1152,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
         if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
         if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
+        if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
         if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
         if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
       }
@@ -1210,11 +1252,29 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
       return false;
     }
-    // macro_start 처리
+
     if (!(scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END])) {
       mark_end(scanner, lexer);
     }
 
+    // footnote_start 처리
+    if (lexer->lookahead == '*') {
+      advance(lexer);
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
+
+      if (valid_symbols[FOOTNOTE_START]) {
+        mark_end(scanner, lexer);
+        scanner->footnote_depth++;
+        uint32_t index;
+        if (get_format_index(scanner, &index)) scanner->format_stack[index] = 0;
+
+        lexer->result_symbol = FOOTNOTE_START;
+        return true;
+      }
+      return false;
+    }
+
+    // macro_start 처리
     if (consume_macro(lexer) && lexer->lookahead == '(') {
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 

@@ -105,6 +105,9 @@ module.exports = grammar({
     $.underline_start,
     $.underline_end,
     $.underline_implicit_end,
+    $.footnote_start,
+    $.footnote_end,
+    $.footnote_implicit_end,
     $._soft_line_prefix,
     $._soft_line_ending,
     $._line_ending,
@@ -165,6 +168,7 @@ module.exports = grammar({
       $.superscript,
       $.subscript,
       $.underline,
+      $.footnote
     ),
     _node_inline: $ => choice(
       $._block_inline,
@@ -183,6 +187,7 @@ module.exports = grammar({
       $.superscript_inline,
       $.subscript_inline,
       $.underline_inline,
+      $.footnote_inline
     ),
 
     _block: $ => choice(
@@ -520,6 +525,12 @@ module.exports = grammar({
     underline_inline: $ => seq($.underline_start, optional(field('content', $.underline_content_inline)), choice($.underline_end, $.underline_implicit_end)),
     underline_content: $ => repeat1($._node),
     underline_content_inline: $ => repeat1($._node_inline),
+
+    footnote: $ => seq($.footnote_start, optional($.footnote_name), optional(seq(token.immediate(" "), optional(field('content', $.footnote_content)))), choice($.footnote_end, $.footnote_implicit_end)),
+    footnote_inline: $ => seq($.footnote_start, optional($.footnote_name), optional(seq(token.immediate(" "), optional(field('content', $.footnote_content_inline)))), choice($.footnote_end, $.footnote_implicit_end)),
+    footnote_name: $ => /[^\n\r\] ]+/,
+    footnote_content: $ => repeat1($._node),
+    footnote_content_inline: $ => repeat1($._node_inline),
 
     _fallback_block: $ => choice(
       $.if_fallback_block,
