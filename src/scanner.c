@@ -127,79 +127,6 @@ enum {
   FORMAT_STACK_SIZE = 256
 };
 
-static const bool paragraph_interrupt_symbols[] = {
-  false, // COMMENT
-  false, // ARGUMENT_START
-  false, // ARGUMENT_END
-  false, // ARGUMENT_IMPLICIT_END
-  false, // NOWIKI_START
-  false, // IF_BLOCK_START
-  false, // IF_FALLBACK_BLOCK_START
-  false, // FOLDING_BLOCK_START
-  false, // FOLDING_FALLBACK_BLOCK_START
-  false, // SYNTAX_BLOCK_START
-  false, // SYNTAX_FALLBACK_BLOCK_START
-  false, // WIKI_BLOCK_START
-  false, // WIKI_FALLBACK_BLOCK_START
-  false, // HTML_BLOCK_START
-  false, // HTML_FALLBACK_BLOCK_START
-  false, // STYLE_BLOCK_START
-  false, // STYLE_FALLBACK_BLOCK_START
-  false, // LATEX_BLOCK_START
-  false, // LATEX_FALLBACK_BLOCK_START
-  false, // SCALE_BLOCK_START
-  false, // SCALE_FALLBACK_BLOCK_START
-  false, // COLOR_BLOCK_START
-  false, // COLOR_FALLBACK_BLOCK_START
-  false, // BRACKET_END
-  false, // BRACKET_IMPLICIT_END
-  true, // HEADING1_START
-  true, // HEADING2_START
-  true, // HEADING3_START
-  true, // HEADING4_START
-  true, // HEADING5_START
-  true, // HEADING6_START
-  true, // HIDDEN_HEADING1_START
-  true, // HIDDEN_HEADING2_START
-  true, // HIDDEN_HEADING3_START
-  true, // HIDDEN_HEADING4_START
-  true, // HIDDEN_HEADING5_START
-  true, // HIDDEN_HEADING6_START
-  false, // HEADING_END
-  false, // MACRO_START
-  false, // MACRO_END
-  false, // MACRO_IMPLICIT_END
-  false, // LINK_START
-  false, // LINK_PIPE
-  false, // LINK_END
-  false, // LINK_IMPLICIT_END
-  false, // FILE_LINK_START
-  false, // BOLD_START
-  false, // BOLD_END
-  false, // BOLD_IMPLICIT_END
-  false, // ITALIC_START
-  false, // ITALIC_END
-  false, // ITALIC_IMPLICIT_END
-  false, // STRIKE_START
-  false, // STRIKE_END
-  false, // STRIKE_IMPLICIT_END
-  false, // STRIKE2_START
-  false, // STRIKE2_END
-  false, // STRIKE2_IMPLICIT_END
-  false, // SUPERSCRIPT_START
-  false, // SUPERSCRIPT_END
-  false, // SUPERSCRIPT_IMPLICIT_END
-  false, // SUBSCRIPT_START
-  false, // SUBSCRIPT_END
-  false, // SUBSCRIPT_IMPLICIT_END
-  false, // UNDERLINE_START
-  false, // UNDERLINE_END
-  false, // UNDERLINE_IMPLICIT_END
-  false, // SOFT_LINE_ENDING
-  false, // LINE_ENDING
-  false, // TOKEN_EOF
-};
-
 // --- Helper 함수들 ---
 static inline bool get_format_index(const Scanner *scanner, uint32_t *index) {
   if (scanner->block_depth >= FORMAT_STACK_SIZE || scanner->link_depth >= FORMAT_STACK_SIZE - scanner->block_depth) {
@@ -355,163 +282,6 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   return false;
 }
 
-static bool consume_depth_block(void* payload, TSLexer *lexer, const bool *valid_symbols, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE, bool is_header_needed) {
-  Scanner *scanner = (Scanner *)payload;
-  if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
-    if (lexer->lookahead != ' ') {
-      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
-    }
-
-    while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
-      if (lexer->lookahead == '}') {
-        if (consume_string(lexer, "}}}")) {
-          return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
-        }
-      } else {
-        advance(lexer);
-      }
-    }
-  } else {
-    if (is_header_needed) {
-      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
-    }
-  }
-
-  if (!consume_newline(lexer)) {
-    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
-  }
-
-  scanner->simulate = FLAG_SIMULATE_HEADING;
-  bool is_interrupted = scan(payload, lexer, paragraph_interrupt_symbols);
-  scanner->simulate = FLAG_NONE;
-  if (is_interrupted) {
-    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
-  }
-
-  if (!valid_symbols[TOKEN_TYPE]) {
-    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
-  }
-
-  return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE, BLOCK_TYPE);
-}
-
-static bool consume_syntax_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  if (lexer->lookahead != ' ') {
-    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-  }
-
-  advance(lexer);
-
-  if (!consume_language(lexer)) {
-    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-  }
-  
-  if (!consume_newline(lexer)) {
-    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-  }
-
-  return register_block(lexer, scanner, valid_symbols, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
-}
-
-static bool consume_scale_block(void* payload, TSLexer *lexer, const bool *valid_symbols) {
-  Scanner *scanner = (Scanner *)payload;
-  if (!iswdigit(lexer->lookahead)) {
-    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-  }
-
-  if (!(lexer->lookahead >= '1' && lexer->lookahead <= '5')) {
-    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-  }
-
-  advance(lexer);
-  
-  if (!consume_newline(lexer)) {
-    if (lexer->lookahead != ' ') {
-      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-    }
-    advance(lexer);
-  } else {
-    scanner->simulate = FLAG_SIMULATE_HEADING;
-    bool is_interrupted = scan(payload, lexer, paragraph_interrupt_symbols);
-    scanner->simulate = FLAG_NONE;
-    if (is_interrupted) {
-      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-    }
-  }
-
-  return register_block(lexer, scanner, valid_symbols, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
-}
-
-static bool is_hex_digit(char c) {
-  return (c >= '0' && c <= '9') ||
-         (c >= 'a' && c <= 'f') ||
-         (c >= 'A' && c <= 'F');
-}
-
-// `#` 다음 오는 단일 색상 본문 검사
-static bool consume_single_color(TSLexer *lexer) {
-  char buf[32];
-  int len = 0;
-  bool all_hex = true;
-
-  while (iswalnum((unsigned char)lexer->lookahead) && len < 31) {
-    char c = (char)lexer->lookahead;
-    if (!is_hex_digit(c)) {
-      all_hex = false;
-    }
-    buf[len++] = (char)towlower((unsigned char)c);
-    advance(lexer);
-  }
-  buf[len] = '\0';
-
-  if (len == 0) return false;
-
-  // 1. 모든 문자가 Hex이고 길이가 3 또는 6인 경우 Valid Hex
-  if (all_hex && (len == 3 || len == 6)) {
-    return true;
-  }
-
-  // 2. Named Color 목록 매칭
-  static const char *const VALID_COLORS[] = {"aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgrey", "darkgreen", "darkkhaki", "darkmagenta", "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink", "deepskyblue", "dimgray", "dimgrey", "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "grey", "green", "greenyellow", "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow", "lightgray", "lightgrey", "lightgreen", "lightpink", "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray", "lightslategrey", "lightsteelblue", "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue", "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream", "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange", "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple", "rebeccapurple", "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue", "tan", "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke", "yellow", "yellowgreen"};
-
-  int count = sizeof(VALID_COLORS) / sizeof(VALID_COLORS[0]);
-  for (int i = 0; i < count; i++) {
-    if (strcmp(buf, VALID_COLORS[i]) == 0) return true;
-  }
-
-  return false;
-}
-
-static bool consume_color_block(void* payload, TSLexer *lexer, const bool *valid_symbols) {
-  Scanner *scanner = (Scanner *)payload;
-  if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-
-  if (lexer->lookahead == ',') {
-    advance(lexer);
-    if (lexer->lookahead != '#') {
-      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-    }
-    advance(lexer);
-    if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-  }
-  
-  if (!consume_newline(lexer)) {
-    if (lexer->lookahead != ' ') {
-      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-    }
-    advance(lexer);
-  } else {
-    scanner->simulate = FLAG_SIMULATE_HEADING;
-    bool is_interrupted = scan(payload, lexer, paragraph_interrupt_symbols);
-    scanner->simulate = FLAG_NONE;
-    if (is_interrupted) {
-      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
-    }
-  }
-
-  return register_block(lexer, scanner, valid_symbols, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
-}
-
 static uint8_t match_heading_token(TSLexer *lexer, Scanner *scanner, bool preserve_start) {
   if (lexer->get_column(lexer) != 0) return NO_HEADING_TOKEN;
   if (lexer->lookahead != '=') return NO_HEADING_TOKEN;
@@ -580,6 +350,160 @@ static uint8_t match_heading_token(TSLexer *lexer, Scanner *scanner, bool preser
   }
 
   return NO_HEADING_TOKEN;
+}
+
+static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE, bool is_header_needed) {
+  if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
+    if (lexer->lookahead != ' ') {
+      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+    }
+
+    while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
+      if (lexer->lookahead == '}') {
+        if (consume_string(lexer, "}}}")) {
+          return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+        }
+      } else {
+        advance(lexer);
+      }
+    }
+  } else {
+    if (is_header_needed) {
+      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+    }
+  }
+
+  if (!consume_newline(lexer)) {
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+  }
+
+  scanner->simulate = FLAG_SIMULATE_HEADING;
+  uint8_t heading_token = match_heading_token(lexer, scanner, false);
+  scanner->simulate = FLAG_NONE;
+  if (heading_token != NO_HEADING_TOKEN) {
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+  }
+
+  if (!valid_symbols[TOKEN_TYPE]) {
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+  }
+
+  return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE, BLOCK_TYPE);
+}
+
+static bool consume_syntax_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (lexer->lookahead != ' ') {
+    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  }
+
+  advance(lexer);
+
+  if (!consume_language(lexer)) {
+    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  }
+  
+  if (!consume_newline(lexer)) {
+    return register_block(lexer, scanner, valid_symbols, SYNTAX_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  }
+
+  return register_block(lexer, scanner, valid_symbols, SYNTAX_BLOCK_START, BLOCK_TYPE_SYNTAX);
+}
+
+static bool consume_scale_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (!iswdigit(lexer->lookahead)) {
+    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  }
+
+  if (!(lexer->lookahead >= '1' && lexer->lookahead <= '5')) {
+    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  }
+
+  advance(lexer);
+  
+  if (!consume_newline(lexer)) {
+    if (lexer->lookahead != ' ') {
+      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    }
+    advance(lexer);
+  } else {
+    scanner->simulate = FLAG_SIMULATE_HEADING;
+    uint8_t heading_token = match_heading_token(lexer, scanner, false);
+    scanner->simulate = FLAG_NONE;
+    if (heading_token != NO_HEADING_TOKEN) {
+      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    }
+  }
+
+  return register_block(lexer, scanner, valid_symbols, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
+}
+
+static bool is_hex_digit(char c) {
+  return (c >= '0' && c <= '9') ||
+         (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F');
+}
+
+// `#` 다음 오는 단일 색상 본문 검사
+static bool consume_single_color(TSLexer *lexer) {
+  char buf[32];
+  int len = 0;
+  bool all_hex = true;
+
+  while (iswalnum((unsigned char)lexer->lookahead) && len < 31) {
+    char c = (char)lexer->lookahead;
+    if (!is_hex_digit(c)) {
+      all_hex = false;
+    }
+    buf[len++] = (char)towlower((unsigned char)c);
+    advance(lexer);
+  }
+  buf[len] = '\0';
+
+  if (len == 0) return false;
+
+  // 1. 모든 문자가 Hex이고 길이가 3 또는 6인 경우 Valid Hex
+  if (all_hex && (len == 3 || len == 6)) {
+    return true;
+  }
+
+  // 2. Named Color 목록 매칭
+  static const char *const VALID_COLORS[] = {"aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgrey", "darkgreen", "darkkhaki", "darkmagenta", "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink", "deepskyblue", "dimgray", "dimgrey", "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "grey", "green", "greenyellow", "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow", "lightgray", "lightgrey", "lightgreen", "lightpink", "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray", "lightslategrey", "lightsteelblue", "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue", "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream", "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange", "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple", "rebeccapurple", "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue", "tan", "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke", "yellow", "yellowgreen"};
+
+  int count = sizeof(VALID_COLORS) / sizeof(VALID_COLORS[0]);
+  for (int i = 0; i < count; i++) {
+    if (strcmp(buf, VALID_COLORS[i]) == 0) return true;
+  }
+
+  return false;
+}
+
+static bool consume_color_block(TSLexer *lexer, Scanner* scanner, const bool *valid_symbols) {
+  if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+
+  if (lexer->lookahead == ',') {
+    advance(lexer);
+    if (lexer->lookahead != '#') {
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    }
+    advance(lexer);
+    if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  }
+  
+  if (!consume_newline(lexer)) {
+    if (lexer->lookahead != ' ') {
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    }
+    advance(lexer);
+  } else {
+    scanner->simulate = FLAG_SIMULATE_HEADING;
+    uint8_t heading_token = match_heading_token(lexer, scanner, false);
+    scanner->simulate = FLAG_NONE;
+    if (heading_token != NO_HEADING_TOKEN) {
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    }
+  }
+
+  return register_block(lexer, scanner, valid_symbols, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
 }
 
 // 2. int32_t 유니코드를 UTF-8 바이트 시퀀스로 인코딩하는 헬퍼 함수
@@ -1034,17 +958,16 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
-    if (!valid_symbols[BRACKET_IMPLICIT_END]) {
+    if (!valid_symbols[BRACKET_IMPLICIT_END] && !valid_symbols[LINE_ENDING]) {
       mark_end(scanner, lexer);
     }
 
     scanner->simulate = FLAG_SIMULATE_HEADING;
-    bool is_interrupted = scan(payload, lexer, paragraph_interrupt_symbols);
+    uint8_t heading_token = match_heading_token(lexer, scanner, false);
     scanner->simulate = FLAG_NONE;
-    // fprintf(stderr, "------ is_inturrpted: %d\n", is_interrupted);
+    // fprintf(stderr, "------ heading_token: %d (v: line_ending: %d, bracket_implicit_end: %d)\n", heading_token, valid_symbols[LINE_ENDING], valid_symbols[BRACKET_IMPLICIT_END]);
 
-
-    if (is_interrupted) {
+    if (heading_token != NO_HEADING_TOKEN) {
       if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) {
         // fprintf(stderr, "------ bracket_implicit_end\n");
         return true;
@@ -1055,12 +978,13 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         return true;
       }
       // fprintf(stderr, "------ NO!\n");
-      return false;
     }
 
     if (valid_symbols[SOFT_LINE_ENDING]) {
       // fprintf(stderr, "------ soft_line_ending\n");
-      mark_end(scanner, lexer);
+      if (heading_token == NO_HEADING_TOKEN) {
+        mark_end(scanner, lexer);
+      }
       lexer->result_symbol = SOFT_LINE_ENDING;
       return true;
     }
@@ -1159,10 +1083,10 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           advance(lexer);
 
           if (consume_string(lexer, "if")) {
-            return consume_depth_block(payload, lexer, valid_symbols, IF_BLOCK_START, BLOCK_TYPE_IF, true);
+            return consume_depth_block(lexer, scanner, valid_symbols, IF_BLOCK_START, BLOCK_TYPE_IF, true);
           }
           if (consume_string(lexer, "folding")) {
-            return consume_depth_block(payload, lexer, valid_symbols, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING, false);
+            return consume_depth_block(lexer, scanner, valid_symbols, FOLDING_BLOCK_START, BLOCK_TYPE_FOLDING, false);
           }
           if (consume_string(lexer, "s")) {
             if (consume_string(lexer, "yntax")) {
@@ -1176,7 +1100,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
             }
           }
           if (consume_string(lexer, "wiki")) {
-            return consume_depth_block(payload, lexer, valid_symbols, WIKI_BLOCK_START, BLOCK_TYPE_WIKI, false);
+            return consume_depth_block(lexer, scanner, valid_symbols, WIKI_BLOCK_START, BLOCK_TYPE_WIKI, false);
           }
           if (consume_string(lexer, "html")) {
             return register_block(lexer, scanner, valid_symbols, HTML_BLOCK_START, BLOCK_TYPE_HTML);
@@ -1190,14 +1114,14 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         } 
         // color_block_start 처리
         else {
-          return consume_color_block(payload, lexer, valid_symbols);
+          return consume_color_block(lexer, scanner, valid_symbols);
         }
       }
 
       // scale_block_start 처리
       if (lexer->lookahead == '+' || lexer->lookahead == '-') {
         advance(lexer);
-        return consume_scale_block(payload, lexer, valid_symbols);
+        return consume_scale_block(lexer, scanner, valid_symbols);
       }
 
       // 모두 아닐 경우 nowiki_start 처리

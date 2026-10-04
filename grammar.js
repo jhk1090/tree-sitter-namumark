@@ -31,7 +31,6 @@ function heading_rule($, start_rule) {
     alias(start_rule, $.heading_marker),
     field("title", repeat1($._node_inline)),
     alias($.heading_end, $.heading_marker),
-    $._soft_line_ending,
   )
 }
 
@@ -108,100 +107,26 @@ module.exports = grammar({
     $.underline_implicit_end,
     $._soft_line_ending,
     $._line_ending,
-    $._eof
+    $._eof,
   ],
 
   rules: {
     source_file: ($) =>
       seq(
-        alias(prec.right(repeat($._block_not_section)), $.section),
-        repeat($.section),
+        optional(seq(alias(repeat1($._node), $.section), choice(seq($._line_ending, $._soft_line_ending), $._eof))),
+        repeat(seq($.section, choice(seq($._line_ending, $._soft_line_ending), $._eof))),
       ),
-    _block_not_section: ($) => seq(repeat1(choice($._line, $._soft_line_ending)), choice($._line_ending, $._eof)),
-    _line: $ => prec.right(repeat1($._node)),
-    section: ($) =>
-      choice(
-        $._section1,
-        $._section2,
-        $._section3,
-        $._section4,
-        $._section5,
-        $._section6,
-      ),
-    _section1: ($) =>
-      prec.right(
-        seq(
-          choice($.heading1, $.hidden_heading1),
-          repeat(
-            choice(
-              alias(
-                choice(
-                  $._section6,
-                  $._section5,
-                  $._section4,
-                  $._section3,
-                  $._section2,
-                ),
-                $.section,
-              ),
-              $._block_not_section,
-            ),
-          ),
-        ),
-      ),
-    _section2: ($) =>
-      prec.right(
-        seq(
-          choice($.heading2, $.hidden_heading2),
-          repeat(
-            choice(
-              alias(
-                choice($._section6, $._section5, $._section4, $._section3),
-                $.section,
-              ),
-              $._block_not_section,
-            ),
-          ),
-        ),
-      ),
-    _section3: ($) =>
-      prec.right(
-        seq(
-          choice($.heading3, $.hidden_heading3),
-          repeat(
-            choice(
-              alias(choice($._section6, $._section5, $._section4), $.section),
-              $._block_not_section,
-            ),
-          ),
-        ),
-      ),
-    _section4: ($) =>
-      prec.right(
-        seq(
-          choice($.heading4, $.hidden_heading4),
-          repeat(
-            choice(
-              alias(choice($._section6, $._section5), $.section),
-              $._block_not_section,
-            ),
-          ),
-        ),
-      ),
-    _section5: ($) =>
-      prec.right(
-        seq(
-          choice($.heading5, $.hidden_heading5),
-          repeat(choice(alias($._section6, $.section), $._block_not_section)),
-        ),
-      ),
-    _section6: ($) => 
-      prec.right(
-        seq(
-          choice($.heading6, $.hidden_heading6),
-          repeat($._block_not_section)
+    section: $ => prec.right(
+      seq(
+        $.heading,
+        repeat(
+          choice(
+            $.section,
+            $._node
+          )
         )
-      ),
+      )
+    ),
 
     heading: ($) =>
       choice(
