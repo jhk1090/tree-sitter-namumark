@@ -99,6 +99,13 @@ enum TokenType {
   FOOTNOTE_START,
   FOOTNOTE_END,
   FOOTNOTE_IMPLICIT_END,
+  TABLE_ROW_START,
+  TABLE_ROW_END,
+  TABLE_CELL_SPLIT,
+  TABLE_ARGUMENT_START,
+  TABLE_ARGUMENT_END,
+  TABLE_ARGUMENT_IMPLICIT_END,
+  TABLE_SPECIAL_ARGUMENT,
   SOFT_LINE_PREFIX,
   SOFT_LINE_ENDING,
   LINE_ENDING,
@@ -661,6 +668,23 @@ static bool register_footnote_implicit_end(TSLexer *lexer, Scanner *scanner, con
   return false;
 }
 
+static bool register_table_row_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (valid_symbols[TABLE_ROW_END]) {
+    lexer->result_symbol = TABLE_ROW_END;
+    return true;
+  }
+  return false;
+}
+
+static bool register_table_argument_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (valid_symbols[TABLE_ARGUMENT_IMPLICIT_END]) {
+    lexer->result_symbol = TABLE_ARGUMENT_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
+
+
 static bool register_format_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t FLAG, uint8_t TOKEN_TYPE) {
   if (has_current_style(scanner, FLAG) && valid_symbols[TOKEN_TYPE]) {
     clear_current_style(scanner, FLAG);
@@ -859,6 +883,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_table_row_end(lexer, scanner, valid_symbols)) return true;
+    if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
     if (valid_symbols[TOKEN_EOF]) {
@@ -886,6 +912,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_table_row_end(lexer, scanner, valid_symbols)) return true;
+      if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
@@ -915,19 +943,131 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return false;
   }
 
-  // link_pipe 처리
-  if (scanner->simulate == FLAG_NONE && lexer->lookahead == '|' && scanner->link_depth > 0) {
+  if (scanner->simulate == FLAG_NONE && lexer->lookahead == '|') {
     mark_end(scanner, lexer);
-    if (consume_string(lexer, "|")) {
-      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
+    // link_pipe 처리
+    if (scanner->link_depth > 0) {
+      if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
+      
       if (valid_symbols[LINK_PIPE]) {
+        advance(lexer);
         mark_end(scanner, lexer);
         lexer->result_symbol = LINK_PIPE;
         return true;
       }
     }
+
+    advance(lexer);
+    if (lexer->lookahead == '|') {
+      advance(lexer);
+
+      // table_row_start 처리
+      if (lexer->get_column(lexer) == 2 && valid_symbols[TABLE_ROW_START]) {
+        lexer->result_symbol = TABLE_ROW_START;
+        return true;
+      }
+
+      // table_cell_split 처리
+      if (valid_symbols[TABLE_CELL_SPLIT]) {
+        mark_end(scanner, lexer);
+        lexer->result_symbol = TABLE_CELL_SPLIT;
+        return true;
+      }
+    }
     return false;
+  }
+
+  // table_argument_start
+  if (scanner->simulate == FLAG_NONE && lexer->lookahead == '<' && (valid_symbols[TABLE_ARGUMENT_START] || valid_symbols[TABLE_SPECIAL_ARGUMENT])) {
+    advance(lexer);
+    mark_end(scanner, lexer);
+
+    if (lexer->lookahead == '(' || lexer->lookahead == ':' || lexer->lookahead == ')') {
+      advance(lexer);
+      if (lexer->lookahead == '>' && valid_symbols[TABLE_SPECIAL_ARGUMENT]) {
+        advance(lexer);
+        mark_end(scanner, lexer);
+        lexer->result_symbol = TABLE_SPECIAL_ARGUMENT;
+        return true;
+      }
+      return false;
+    }
+
+    if (lexer->lookahead == 'v' || lexer->lookahead == '^') {
+      advance(lexer);
+      if (lexer->lookahead == '|') {
+        advance(lexer);
+        while (lexer->lookahead >= '0' && lexer->lookahead <= '9') {
+          advance(lexer);
+        }
+        if (lexer->lookahead == '>' && valid_symbols[TABLE_SPECIAL_ARGUMENT]) {
+          advance(lexer);
+          mark_end(scanner, lexer);
+          lexer->result_symbol = TABLE_SPECIAL_ARGUMENT;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (lexer->lookahead == '|' || lexer->lookahead == '-') {
+      advance(lexer);
+      while (lexer->lookahead >= '0' && lexer->lookahead <= '9') {
+        advance(lexer);
+      }
+      if (lexer->lookahead == '>' && valid_symbols[TABLE_SPECIAL_ARGUMENT]) {
+        advance(lexer);
+        mark_end(scanner, lexer);
+        lexer->result_symbol = TABLE_SPECIAL_ARGUMENT;
+        return true;
+      }
+      return false;
+    }
+
+    char buf[32] = {0};
+    size_t len = 0;
+
+    while (iswalnum(lexer->lookahead)) {
+      if (len < 31) {
+        buf[len++] = (char)lexer->lookahead;
+      }
+      advance(lexer);
+    }
+    buf[len] = '\0';
+
+    if (len == 0) return false;
+
+    static const char *const ALLOWED_TABLE_ARGUMENT_NAME[] = {
+      "tablecolor", "tablebgcolor", "tablebordercolor", "bgcolor", "colbgcolor", "rowbgcolor",
+      "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "tablealign", "width", "height",
+      "thead", "sortable", "keepall", "rowkeepall", "colkeepall", "nopad"
+    };
+    static const size_t COUNT = sizeof(ALLOWED_TABLE_ARGUMENT_NAME) / sizeof(ALLOWED_TABLE_ARGUMENT_NAME[0]);
+
+    bool is_valid = false;
+    for (size_t i = 0; i < COUNT; i++) {
+      if (strcmp(buf, ALLOWED_TABLE_ARGUMENT_NAME[i]) == 0) {
+        is_valid = true;
+        break;
+      }
+    }
+
+    if (is_valid) {
+      if ((lexer->lookahead == '>' || lexer->lookahead == '=') && valid_symbols[TABLE_ARGUMENT_START]) {
+        lexer->result_symbol = TABLE_ARGUMENT_START;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // table_argument_end
+  if (scanner->simulate == FLAG_NONE && lexer->lookahead == '>' && valid_symbols[TABLE_ARGUMENT_END]) {
+    advance(lexer);
+    lexer->result_symbol = TABLE_ARGUMENT_END;
+    return true;
   }
 
   if (scanner->simulate == FLAG_NONE && lexer->lookahead == ']') {
@@ -1034,6 +1174,10 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     advance(lexer);
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
+    // TODO: 개행 허용되는 모니위키 호환 테이블 문법 구현
+    // -> 첫 번째 셀은 첫 번째 줄부터 줄바꿈 가능, 두 번째부터는 첫 번째 줄에 필수로 문자가 있어야 함.
+    if (register_table_row_end(lexer, scanner, valid_symbols)) return true;
+    if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
     if (valid_symbols[SOFT_LINE_ENDING]) {

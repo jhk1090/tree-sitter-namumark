@@ -7,6 +7,10 @@ const no_arg_macros = ["clearfix", "date", "datetime", "각주", "footnote", "br
 
 const file_link_properties = ["align", "bgcolor", "border-radius", "height", "object-fit", "rendering", "theme", "width"]
 
+const required_value_table_arguments = [ "tablecolor", "tablebgcolor", "tablebordercolor", "bgcolor", "colbgcolor", "rowbgcolor", "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "tablealign", "width", "height" ]
+const no_value_table_arguments = ["thead", "sortable", "keepall", "rowkeepall", "colkeepall", "nopad"]
+
+
 /// @ts-ignore
 function fallback_rule($, start_rule) {
   return seq(
@@ -108,6 +112,13 @@ module.exports = grammar({
     $.footnote_start,
     $.footnote_end,
     $.footnote_implicit_end,
+    $.table_row_start,
+    $.table_row_end,
+    $.table_cell_split,
+    $.table_argument_start,
+    $.table_argument_end,
+    $.table_argument_implicit_end,
+    $.table_special_argument,
     $._soft_line_prefix,
     $._soft_line_ending,
     $._line_ending,
@@ -168,7 +179,8 @@ module.exports = grammar({
       $.superscript,
       $.subscript,
       $.underline,
-      $.footnote
+      $.footnote,
+      $.table_row
     ),
     _node_inline: $ => choice(
       $._block_inline,
@@ -532,6 +544,31 @@ module.exports = grammar({
     footnote_content: $ => repeat1($._node),
     footnote_content_inline: $ => repeat1($._node_inline),
 
+    table_row: $ => seq($.table_row_start, repeat1($.table_cell), $.table_row_end),
+    table_cell: $ => seq($.table_cell_split, repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content)),
+    table_cell_content: $ => repeat1($._node),
+    table_argument: $ => seq(
+      $.table_argument_start, 
+      field('name', choice(
+        $.table_argument_required_value_name, 
+        $.table_argument_no_value_name
+      )),
+      optional(seq(token.immediate("="), optional(field('value', $.table_argument_value)))), 
+      choice($.table_argument_end, $.table_argument_implicit_end)
+    ),
+    table_argument_required_value_name: $ => choice(...required_value_table_arguments),
+    table_argument_no_value_name: $ => choice(...no_value_table_arguments),
+    table_argument_value: $ => repeat1(
+      choice(
+        /[^\]\}>\r\n\\]+/,
+        $.escape,
+        prec(-10, token(']')),
+        prec(-10, token('}')),
+        prec(-10, token('>')),
+      )
+    ),
+    
+
     _fallback_block: $ => choice(
       $.if_fallback_block,
       $.folding_fallback_block,
@@ -647,7 +684,7 @@ module.exports = grammar({
     ),
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
+      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(1, $._newline),
@@ -663,6 +700,7 @@ module.exports = grammar({
       prec(-10, token('_')),
       prec(-10, token('^')),
       prec(-10, token(',')),
+      prec(-10, token('|')),
     )),
     text_inline: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
