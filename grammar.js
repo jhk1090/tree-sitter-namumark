@@ -114,6 +114,7 @@ module.exports = grammar({
     $.footnote_implicit_end,
     $.table_row_start,
     $.table_row_end,
+    $.table_row_implicit_end,
     $.table_cell_split,
     $.table_argument_start,
     $.table_argument_end,
@@ -544,7 +545,7 @@ module.exports = grammar({
     footnote_content: $ => repeat1($._node),
     footnote_content_inline: $ => repeat1($._node_inline),
 
-    table_row: $ => seq($.table_row_start, repeat1($.table_cell), $.table_row_end),
+    table_row: $ => seq($.table_row_start, repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end)),
     table_cell: $ => seq($.table_cell_split, repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content)),
     table_cell_content: $ => repeat1($._node),
     table_argument: $ => seq(

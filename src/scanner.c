@@ -101,6 +101,7 @@ enum TokenType {
   FOOTNOTE_IMPLICIT_END,
   TABLE_ROW_START,
   TABLE_ROW_END,
+  TABLE_ROW_IMPLICIT_END,
   TABLE_CELL_SPLIT,
   TABLE_ARGUMENT_START,
   TABLE_ARGUMENT_END,
@@ -140,6 +141,7 @@ typedef struct {
   uint32_t block_depth;
   uint8_t simulate;
   uint8_t block_stack[256];
+  uint8_t table_stack[32]; // (block_depth / 8)와 연동
   uint8_t format_stack[256];
 } Scanner;
 
@@ -149,6 +151,19 @@ enum {
 };
 
 // --- Helper 함수들 ---
+
+static inline void set_table_stack(Scanner* s) {
+  s->table_stack[s->block_depth / 8] |= (1 << (s->block_depth % 8));
+}
+
+static inline void clear_table_stack(Scanner* s) {
+  s->table_stack[s->block_depth / 8] &= ~(1 << (s->block_depth % 8));
+}
+
+static inline bool get_table_stack(const Scanner* s) {
+  return (s->table_stack[s->block_depth / 8] & (1 << (s->block_depth % 8))) != 0;
+}
+
 static inline bool get_format_index(const Scanner *scanner, uint32_t *index) {
   if (scanner->block_depth >= FORMAT_STACK_SIZE 
     || scanner->link_depth >= FORMAT_STACK_SIZE - scanner->block_depth 
@@ -668,9 +683,10 @@ static bool register_footnote_implicit_end(TSLexer *lexer, Scanner *scanner, con
   return false;
 }
 
-static bool register_table_row_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  if (valid_symbols[TABLE_ROW_END]) {
-    lexer->result_symbol = TABLE_ROW_END;
+static bool register_table_row_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (valid_symbols[TABLE_ROW_IMPLICIT_END]) {
+    clear_table_stack(scanner);
+    lexer->result_symbol = TABLE_ROW_IMPLICIT_END;
     return true;
   }
   return false;
@@ -804,6 +820,9 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   for (uint32_t i = 0; i < scanner->block_depth; i++) {
     buffer[size++] = (char)scanner->block_stack[i];
   }
+  for (uint32_t i = 0; i < (scanner->block_depth / 8) + 1; i++) {
+    buffer[size++] = (char)scanner->table_stack[i];
+  }
   for (uint32_t i = 0; i < format_count; i++) {
     buffer[size++] = (char)scanner->format_stack[i];
   }
@@ -813,6 +832,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
 void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
   Scanner *scanner = (Scanner *)payload;
   memset(scanner->block_stack, 0, sizeof scanner->block_stack);
+  memset(scanner->table_stack, 0, sizeof scanner->table_stack);
   memset(scanner->format_stack, 0, sizeof scanner->format_stack);
   scanner->heading_level = 0;
   scanner->heading_status = STATUS_NO_HEADING_SECTION;
@@ -842,11 +862,14 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   uint32_t saved_footnote_depth = data[size++];
   uint32_t saved_block_depth = data[size++];
 
-  if (saved_block_depth > sizeof scanner->block_stack || length - size < saved_block_depth) return;
+  if (saved_block_depth > sizeof scanner->block_stack || length - size < (saved_block_depth + (saved_block_depth / 8))) return;
 
   scanner->block_depth = saved_block_depth;
   for (uint32_t i = 0; i < scanner->block_depth; i++) {
     scanner->block_stack[i] = (uint8_t)buffer[size++];
+  }
+  for (uint32_t i = 0; i < (scanner->block_depth / 8) + 1; i++) {
+    scanner->table_stack[i] = (uint8_t)buffer[size++];
   }
 
   uint32_t format_count = saved_block_depth + saved_link_depth + saved_footnote_depth + 1;
@@ -883,7 +906,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
-    if (register_table_row_end(lexer, scanner, valid_symbols)) return true;
+    if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
@@ -912,7 +935,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
-      if (register_table_row_end(lexer, scanner, valid_symbols)) return true;
+      if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
@@ -963,16 +986,34 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       advance(lexer);
 
       // table_row_start 처리
-      if (lexer->get_column(lexer) == 2 && valid_symbols[TABLE_ROW_START]) {
+      if (!get_table_stack(scanner) && lexer->get_column(lexer) == 2 && valid_symbols[TABLE_ROW_START]) {
         lexer->result_symbol = TABLE_ROW_START;
         return true;
       }
 
+      mark_end(scanner, lexer);
+
+      // table_row_end 처리
+      if (
+        get_table_stack(scanner) &&
+        (
+          (lexer->lookahead == '\r' || lexer->lookahead == '\n' || lexer->eof(lexer)) ||
+          (lexer->lookahead == '}' && scanner->block_depth > 0 && consume_string(lexer, "}}}"))
+        )
+      ) {
+        if (valid_symbols[TABLE_ROW_END]) {
+          clear_table_stack(scanner);
+          lexer->result_symbol = TABLE_ROW_END;
+          return true;
+        }
+        return false;
+      }
+
       // table_cell_split 처리
       if (valid_symbols[TABLE_CELL_SPLIT]) {
-        mark_end(scanner, lexer);
+        set_table_stack(scanner);
         lexer->result_symbol = TABLE_CELL_SPLIT;
-        return true;
+        return true;    
       }
     }
     return false;
@@ -1174,9 +1215,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     advance(lexer);
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
-    // TODO: 개행 허용되는 모니위키 호환 테이블 문법 구현
-    // -> 첫 번째 셀은 첫 번째 줄부터 줄바꿈 가능, 두 번째부터는 첫 번째 줄에 필수로 문자가 있어야 함.
-    if (register_table_row_end(lexer, scanner, valid_symbols)) return true;
     if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
@@ -1200,9 +1238,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       uint8_t heading_level_offset = scanner->cached_heading_token - HEADING1_START + 1;
       uint8_t heading_level = heading_level_offset > 6 ? heading_level_offset - 6 : heading_level_offset;
 
-      if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) {
-        return true;
-      }
+      if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
 
       if (valid_symbols[LINE_ENDING]) {
         if (scanner->heading_level < heading_level && scanner->heading_level != STATUS_NO_HEADING_SECTION && valid_symbols[SOFT_LINE_PREFIX]) {
