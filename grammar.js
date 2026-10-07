@@ -120,6 +120,8 @@ module.exports = grammar({
     $.table_argument_end,
     $.table_argument_implicit_end,
     $.table_special_argument,
+    $.paragraph_start,
+    $.paragraph_end,
     $._soft_line_prefix,
     $._soft_line_ending,
     $._line_ending,
@@ -129,7 +131,7 @@ module.exports = grammar({
   rules: {
     source_file: ($) =>
       seq(
-        optional(seq(alias(repeat1($._node), $.section), choice(seq($._line_ending, $._newline), $._eof))),
+        optional(seq(alias(repeat1(choice($._node, $.paragraph)), $.section), choice(seq($._line_ending, $._newline), $._eof))),
         repeat(seq($.section, choice(seq($._line_ending, $._newline), $._eof))),
       ),
     section: $ => prec.right(
@@ -138,11 +140,14 @@ module.exports = grammar({
         repeat(
           choice(
             seq($.section, choice($._line_ending, $._eof)),
-            $._node
+            $._node,
+            $.paragraph
           )
         )
       )
     ),
+    paragraph: $ => seq($.paragraph_start, optional($.paragraph_content), $.paragraph_end),
+    paragraph_content: $ => repeat1($._node),
 
     heading: ($) =>
       choice(
@@ -292,7 +297,7 @@ module.exports = grammar({
       optional($.wiki_block_content),
       $._block_end
     ),
-    wiki_block_content: $ => repeat1(choice($._node, $._newline)),
+    wiki_block_content: $ => repeat1(choice($._node, $._newline, $.paragraph)),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
       prec(1, token(/[^\r\n@= ]+/)),
@@ -547,7 +552,7 @@ module.exports = grammar({
 
     table_row: $ => seq($.table_row_start, repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end)),
     table_cell: $ => seq($.table_cell_split, repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content)),
-    table_cell_content: $ => repeat1($._node),
+    table_cell_content: $ => repeat1(choice($._node, $.paragraph)),
     table_argument: $ => seq(
       $.table_argument_start, 
       field('name', choice(
@@ -685,7 +690,8 @@ module.exports = grammar({
     ),
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
+      /[^ \[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
+      prec(-10, token(' ')),
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(1, $._newline),
