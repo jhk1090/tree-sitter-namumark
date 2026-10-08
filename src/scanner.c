@@ -109,6 +109,8 @@ enum TokenType {
   TABLE_SPECIAL_ARGUMENT,
   PARAGRAPH_START,
   PARAGRAPH_END,
+  PARAGRAPH_SKIP,
+  PIPE,
   SOFT_LINE_PREFIX,
   SOFT_LINE_ENDING,
   LINE_ENDING,
@@ -145,7 +147,7 @@ typedef struct {
   uint8_t block_stack[256]; // block_depth와 연동
   uint8_t table_stack[32]; // (block_depth / 8)와 연동
   uint8_t format_stack[256]; // block_depth + footnote_depth + link_depth와 연동
-  uint8_t paragraph_indent_stack[256]; // block_depth or block_depth + table과 연동
+  uint8_t indent_stack[256]; // block_depth or block_depth + table과 연동
 } Scanner;
 
 enum {
@@ -829,7 +831,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
     buffer[size++] = (char)scanner->table_stack[i];
   }
   for (uint32_t i = 0; i < (scanner->block_depth + get_table_stack(scanner) + 1); i++) {
-    buffer[size++] = (char)scanner->paragraph_indent_stack[i];
+    buffer[size++] = (char)scanner->indent_stack[i];
   }
   for (uint32_t i = 0; i < format_count; i++) {
     buffer[size++] = (char)scanner->format_stack[i];
@@ -841,7 +843,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   Scanner *scanner = (Scanner *)payload;
   memset(scanner->block_stack, 0, sizeof scanner->block_stack);
   memset(scanner->table_stack, 0, sizeof scanner->table_stack);
-  memset(scanner->paragraph_indent_stack, 0, sizeof scanner->paragraph_indent_stack);
+  memset(scanner->indent_stack, 0, sizeof scanner->indent_stack);
   memset(scanner->format_stack, 0, sizeof scanner->format_stack);
   scanner->heading_level = 0;
   scanner->heading_status = STATUS_NO_HEADING_SECTION;
@@ -881,7 +883,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
     scanner->table_stack[i] = (uint8_t)buffer[size++];
   }
   for (uint32_t i = 0; i < scanner->block_depth + get_table_stack(scanner) + 1; i++) {
-    scanner->paragraph_indent_stack[i] = (uint8_t)buffer[size++];
+    scanner->indent_stack[i] = (uint8_t)buffer[size++];
   }
 
   uint32_t format_count = saved_block_depth + saved_link_depth + saved_footnote_depth + 1;
@@ -899,6 +901,8 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->block_depth > 0 ? scanner->block_stack[scanner->block_depth - 1] : BLOCK_TYPE_NONE;
+  uint8_t indent_depth = scanner->block_depth + get_table_stack(scanner);
+  uint8_t current_indent_size = scanner->indent_stack[indent_depth];
 
   bool is_breakable_bracket = false;
   switch (top_type) {
@@ -1008,12 +1012,13 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       advance(lexer);
 
       // table_row_start 처리
-      if (!get_table_stack(scanner) && valid_symbols[TABLE_ROW_START]) {
+      // fprintf(stderr, "current indent size: %d\n", current_indent_size);
+      if (!get_table_stack(scanner) && lexer->get_column(lexer) == current_indent_size + 2 && valid_symbols[TABLE_ROW_START]) {
+        mark_end(scanner, lexer);
+        set_table_stack(scanner);
         lexer->result_symbol = TABLE_ROW_START;
         return true;
       }
-
-      mark_end(scanner, lexer);
 
       // table_row_end 처리
       if (
@@ -1023,12 +1028,14 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           (lexer->lookahead == '}' && scanner->block_depth > 0 && consume_string(lexer, "}}}"))
         )
       ) {
+        // mark_end???
         if (valid_symbols[PARAGRAPH_END]) {
-          clear_table_stack(scanner);
+          // clear_table_stack(scanner);
           lexer->result_symbol = PARAGRAPH_END;
           return true;
         }
         if (valid_symbols[TABLE_ROW_END]) {
+          mark_end(scanner, lexer);
           clear_table_stack(scanner);
           lexer->result_symbol = TABLE_ROW_END;
           return true;
@@ -1037,12 +1044,20 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       }
 
       // table_cell_split 처리
-      if (valid_symbols[TABLE_CELL_SPLIT]) {
-        set_table_stack(scanner);
+      if (get_table_stack(scanner) && valid_symbols[TABLE_CELL_SPLIT]) {
+        mark_end(scanner, lexer);
         lexer->result_symbol = TABLE_CELL_SPLIT;
         return true;    
       }
     }
+
+    // pipe는 1개거나 2개일 수 있음
+    if (valid_symbols[PIPE]) {
+      mark_end(scanner, lexer);
+      lexer->result_symbol = PIPE;
+      return true;
+    }
+
     return false;
   }
 
@@ -1256,8 +1271,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     }
     
     if (lexer->get_column(lexer) == 0) {
-      uint8_t index = scanner->block_depth + get_table_stack(scanner);
-      uint8_t current_size = scanner->paragraph_indent_stack[index];
       if (lexer->lookahead != '=') {
         scanner->cached_heading_token = NO_HEADING_TOKEN;
       }
@@ -1270,14 +1283,16 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         }
         
         if (size > UINT8_MAX) size = UINT8_MAX;
-        if (current_size != size && valid_symbols[PARAGRAPH_END]) {
+        // fprintf("---- current_indent_size: %d, size: %d\n", current_indent_size, size);
+        if (current_indent_size > size && valid_symbols[PARAGRAPH_END]) {
+          scanner->indent_stack[indent_depth]--;
           lexer->result_symbol = PARAGRAPH_END;
           return true;
         }
       } else {
         // fprintf(stderr, "---- is newline, current_size: %d, size: %d, index: %d\n", current_size, size, index);
-        if (current_size != size && valid_symbols[PARAGRAPH_END]) {
-          scanner->paragraph_indent_stack[index] = size;
+        scanner->indent_stack[indent_depth] = 0;
+        if (valid_symbols[PARAGRAPH_END]) {
           lexer->result_symbol = PARAGRAPH_END;
           return true;
         }
@@ -1323,25 +1338,27 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return false;
   }
 
-  if (scanner->simulate == FLAG_NONE && lexer->lookahead == ' ' && lexer->get_column(lexer) == 0 && valid_symbols[PARAGRAPH_START]) {
-    // fprintf(stderr, "entering\n");
-    size_t size = 0;
-    while (lexer->lookahead == ' ') {
-      size++;
+  // fprintf(stderr, "----- depth: %d, current_size: %d\n", indent_depth, current_indent_size);
+  if (scanner->simulate == FLAG_NONE && lexer->lookahead == ' ' && lexer->get_column(lexer) < current_indent_size) {
+    while (lexer->lookahead == ' ' && lexer->get_column(lexer) < current_indent_size) {
       advance(lexer);
     }
-    
-    if (size > UINT8_MAX) size = UINT8_MAX;
-    uint8_t index = scanner->block_depth + get_table_stack(scanner);
-    uint8_t current_size = scanner->paragraph_indent_stack[index];
-    // fprintf(stderr, "size: %d, current_size: %d, index: %d\n", size, current_size, index);
-    if (current_size != size) {
-      scanner->paragraph_indent_stack[index] = size;
-      lexer->result_symbol = PARAGRAPH_START;
-      return true;
-    }
+    lexer->result_symbol = PARAGRAPH_SKIP;
+    return true;
+  }
 
-    return false;
+  if (
+    scanner->simulate == FLAG_NONE &&
+    lexer->lookahead == ' ' &&
+    lexer->get_column(lexer) == current_indent_size &&
+    valid_symbols[PARAGRAPH_START] &&
+    scanner->indent_stack[indent_depth] < UINT8_MAX
+  ) {
+    // fprintf(stderr, "entering\n");
+    advance(lexer);
+    scanner->indent_stack[indent_depth]++;
+    lexer->result_symbol = PARAGRAPH_START;
+    return true;
   }
 
   // argument_end 처리

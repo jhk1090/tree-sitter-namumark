@@ -122,6 +122,8 @@ module.exports = grammar({
     $.table_special_argument,
     $.paragraph_start,
     $.paragraph_end,
+    $._paragraph_skip,
+    $._pipe,
     $._soft_line_prefix,
     $._soft_line_ending,
     $._line_ending,
@@ -147,7 +149,7 @@ module.exports = grammar({
       )
     ),
     paragraph: $ => seq($.paragraph_start, optional($.paragraph_content), $.paragraph_end),
-    paragraph_content: $ => repeat1($._node),
+    paragraph_content: $ => repeat1(choice($._node, $._paragraph_skip, $.paragraph)),
 
     heading: ($) =>
       choice(
@@ -294,10 +296,9 @@ module.exports = grammar({
       "#!wiki",
       optional($.wiki_block_header),
       $._newline,
-      optional($.wiki_block_content),
+      optional($.block_content),
       $._block_end
     ),
-    wiki_block_content: $ => repeat1(choice($._node, $._newline, $.paragraph)),
     wiki_block_header: ($) => repeat1(choice(
       $._wiki_attribute,
       prec(1, token(/[^\r\n@= ]+/)),
@@ -339,7 +340,7 @@ module.exports = grammar({
         prec(-10, token("@"))
       )
     ),
-    block_content: $ => repeat1($._node),
+    block_content: $ => repeat1(choice($._node, $.paragraph)),
     block_content_inline: $ => repeat1($._node_inline),
 
     scale_block: $ => seq(
@@ -550,9 +551,9 @@ module.exports = grammar({
     footnote_content: $ => repeat1($._node),
     footnote_content_inline: $ => repeat1($._node_inline),
 
-    table_row: $ => seq($.table_row_start, repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end)),
-    table_cell: $ => seq($.table_cell_split, repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content)),
-    table_cell_content: $ => repeat1(choice($._node, $.paragraph)),
+    table_row: $ => prec.right(seq(repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end))),
+    table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
+    table_cell_content: $ => prec.right(repeat1(choice($._node, $.paragraph))),
     table_argument: $ => seq(
       $.table_argument_start, 
       field('name', choice(
@@ -691,7 +692,7 @@ module.exports = grammar({
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
       /[^ \[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
-      prec(-10, token(' ')),
+      prec(-10, token.immediate(' ')),
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(1, $._newline),
@@ -707,7 +708,7 @@ module.exports = grammar({
       prec(-10, token('_')),
       prec(-10, token('^')),
       prec(-10, token(',')),
-      prec(-10, token('|')),
+      $._pipe,
     )),
     text_inline: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
