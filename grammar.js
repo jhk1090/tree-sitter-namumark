@@ -190,6 +190,26 @@ module.exports = grammar({
       $.footnote,
       $.table_row
     ),
+    _node_table: $ => choice(
+      $.comment,
+      $._block,
+      $._fallback_block,
+      $.argument,
+      $.escape,
+      $.text,
+      $.macro,
+      $.macro_without_args,
+      $.link,
+      $.file_link,
+      $.bold,
+      $.italic,
+      $.strike,
+      $.strike2,
+      $.superscript,
+      $.subscript,
+      $.underline,
+      $.footnote
+    ),
     _node_inline: $ => choice(
       $._block_inline,
       $._fallback_block_inline,
@@ -553,7 +573,7 @@ module.exports = grammar({
 
     table_row: $ => prec.right(seq(repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end))),
     table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
-    table_cell_content: $ => prec.right(repeat1(choice($._node, $.paragraph))),
+    table_cell_content: $ => prec.right(repeat1(choice($._node_table, $.paragraph))),
     table_argument: $ => seq(
       $.table_argument_start, 
       field('name', choice(
