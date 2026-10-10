@@ -123,6 +123,8 @@ module.exports = grammar({
     $.paragraph_start,
     $.paragraph_end,
     $._paragraph_skip,
+    $.unordered_list_paragraph_start,
+    $.ordered_list_paragraph_start,
     $._pipe,
     $._soft_line_prefix,
     $._soft_line_ending,
@@ -133,7 +135,7 @@ module.exports = grammar({
   rules: {
     source_file: ($) =>
       seq(
-        optional(seq(alias(repeat1(choice($._node, $.paragraph)), $.section), choice(seq($._line_ending, $._newline), $._eof))),
+        optional(seq(alias(repeat1(choice($._node, $._paragraph)), $.section), choice(seq($._line_ending, $._newline), $._eof))),
         repeat(seq($.section, choice(seq($._line_ending, $._newline), $._eof))),
       ),
     section: $ => prec.right(
@@ -143,13 +145,46 @@ module.exports = grammar({
           choice(
             seq($.section, choice($._line_ending, $._eof)),
             $._node,
-            $.paragraph
+            $._paragraph
           )
         )
       )
     ),
+
     paragraph: $ => seq($.paragraph_start, optional($.paragraph_content), $.paragraph_end),
-    paragraph_content: $ => repeat1(choice($._node, $._paragraph_skip, $.paragraph)),
+    paragraph_content: $ => repeat1(choice($._node, $._paragraph_skip, $._paragraph)),
+
+    unordered_list_paragraph: $ => seq($.unordered_list_paragraph_start, token.immediate("*"), optional($.paragraph_content), $.paragraph_end),
+
+    ordered_list_paragraph: $ => seq($.ordered_list_paragraph_start, field("type", $.ordered_list_paragraph_type), optional(field("start_index", $.ordered_list_paragraph_start_index)), optional($.paragraph_content), $.paragraph_end),
+    ordered_list_paragraph_type: $ => token.immediate(/(1|a|A|i|I)\./),
+    ordered_list_paragraph_start_index: $ => token.immediate(/#[^ \n\r]{1,}/),
+
+    _paragraph: $ => choice($.paragraph, $.unordered_list_paragraph, $.ordered_list_paragraph),
+
+    table_row: $ => prec.right(seq(repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end))),
+    table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
+    table_cell_content: $ => prec.right(repeat1(choice($._node_table, $._paragraph))),
+    table_argument: $ => seq(
+      $.table_argument_start, 
+      field('name', choice(
+        $.table_argument_required_value_name, 
+        $.table_argument_no_value_name
+      )),
+      optional(seq(token.immediate("="), optional(field('value', $.table_argument_value)))), 
+      choice($.table_argument_end, $.table_argument_implicit_end)
+    ),
+    table_argument_required_value_name: $ => choice(...required_value_table_arguments),
+    table_argument_no_value_name: $ => choice(...no_value_table_arguments),
+    table_argument_value: $ => repeat1(
+      choice(
+        /[^\]\}>\r\n\\]+/,
+        $.escape,
+        prec(-10, token(']')),
+        prec(-10, token('}')),
+        prec(-10, token('>')),
+      )
+    ),
 
     heading: ($) =>
       choice(
@@ -360,7 +395,7 @@ module.exports = grammar({
         prec(-10, token("@"))
       )
     ),
-    block_content: $ => repeat1(choice($._node, $.paragraph)),
+    block_content: $ => repeat1(choice($._node, $.paragraph, $.unordered_list_paragraph, $.ordered_list_paragraph)),
     block_content_inline: $ => repeat1($._node_inline),
 
     scale_block: $ => seq(
@@ -570,31 +605,6 @@ module.exports = grammar({
     footnote_name: $ => /[^\n\r\] ]+/,
     footnote_content: $ => repeat1($._node),
     footnote_content_inline: $ => repeat1($._node_inline),
-
-    table_row: $ => prec.right(seq(repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end))),
-    table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
-    table_cell_content: $ => prec.right(repeat1(choice($._node_table, $.paragraph))),
-    table_argument: $ => seq(
-      $.table_argument_start, 
-      field('name', choice(
-        $.table_argument_required_value_name, 
-        $.table_argument_no_value_name
-      )),
-      optional(seq(token.immediate("="), optional(field('value', $.table_argument_value)))), 
-      choice($.table_argument_end, $.table_argument_implicit_end)
-    ),
-    table_argument_required_value_name: $ => choice(...required_value_table_arguments),
-    table_argument_no_value_name: $ => choice(...no_value_table_arguments),
-    table_argument_value: $ => repeat1(
-      choice(
-        /[^\]\}>\r\n\\]+/,
-        $.escape,
-        prec(-10, token(']')),
-        prec(-10, token('}')),
-        prec(-10, token('>')),
-      )
-    ),
-    
 
     _fallback_block: $ => choice(
       $.if_fallback_block,

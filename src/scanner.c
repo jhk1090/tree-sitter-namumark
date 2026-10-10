@@ -26,6 +26,9 @@
 
 #define FLAG_SIMULATE_HEADING   (1 << 0) // 0x01 (0000 0001) 
 
+#define MAX_PARAGRAPH_COUNT 257
+#define INDENT_TYPE_STACK_SIZE ((MAX_PARAGRAPH_COUNT + 3) / 4)
+
 static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols);
 
 enum TokenType {
@@ -110,6 +113,8 @@ enum TokenType {
   PARAGRAPH_START,
   PARAGRAPH_END,
   PARAGRAPH_SKIP,
+  UNORDERED_LIST_PARAGRAPH_START,
+  ORDERED_LIST_PARAGRAPH_START,
   PIPE,
   SOFT_LINE_PREFIX,
   SOFT_LINE_ENDING,
@@ -132,6 +137,12 @@ enum BlockType {
   BLOCK_TYPE_FALLBACK
 };
 
+enum IndentType {
+  INDENT_TYPE_PARAGRAPH,
+  INDENT_TYPE_ORDERED_LIST_PARAGRAPH,
+  INDENT_TYPE_UNORDERED_LIST_PARAGRAPH,
+};
+
 typedef struct {
   bool in_macro;
   bool in_argument;
@@ -143,11 +154,13 @@ typedef struct {
   uint32_t link_depth;
   uint32_t footnote_depth;
   uint32_t block_depth;
+  uint16_t indent_type_stack_size;
   uint8_t simulate;
   uint8_t block_stack[256]; // block_depth와 연동
   uint8_t table_stack[32]; // (block_depth / 8)와 연동
   uint8_t format_stack[256]; // block_depth + footnote_depth + link_depth와 연동
-  uint8_t indent_stack[257]; // block_depth or block_depth + table과 연동
+  uint8_t indent_stack[MAX_PARAGRAPH_COUNT]; // block_depth or block_depth + table과 연동
+  uint8_t indent_type_stack[INDENT_TYPE_STACK_SIZE];
 } Scanner;
 
 enum {
@@ -157,6 +170,33 @@ enum {
 };
 
 // --- Helper 함수들 ---
+
+static void push_indent_type(Scanner* scanner, uint8_t type) {
+  uint16_t index = scanner->indent_type_stack_size++;
+  uint16_t byte_index = index / 4;
+  uint8_t bit_offset = (index % 4) * 2;
+
+  scanner->indent_type_stack[byte_index] &= ~(0x03u << bit_offset);
+  scanner->indent_type_stack[byte_index] |= (type & 0x03u) << bit_offset;
+}
+
+static void remove_top_indent_type(Scanner *scanner) {
+  if (scanner->indent_type_stack_size > 0) {
+    scanner->indent_type_stack_size--;
+  }
+}
+
+static uint8_t get_top_indent_type(Scanner *scanner) {
+  // if (type_stack_size == 0) {
+  //     return PARAGRAPH; // 실제 구현에서는 오류 처리 권장
+  // }
+
+  uint16_t index = scanner->indent_type_stack_size - 1;
+  uint16_t byte_index = index / 4;
+  uint8_t bit_offset = (index % 4) * 2;
+
+  return (scanner->indent_type_stack[byte_index] >> bit_offset) & 0x03u;
+}
 
 static inline void set_table_stack(Scanner* s) {
   if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
@@ -331,6 +371,9 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   if (valid_symbols[TOKEN_TYPE]) {
     if (scanner->block_depth < MAX_BLOCK_DEPTH && can_increment_format_depth(scanner)) {
       scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE;
+
+      uint16_t indent_depth = get_table_stack(scanner) + scanner->block_depth;
+      scanner->indent_stack[indent_depth] = 0;
       reset_current_format_scope(scanner);
     } else {
       return false;
@@ -342,6 +385,9 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   if (BLOCK_TYPE != BLOCK_TYPE_FALLBACK && valid_symbols[TOKEN_TYPE + 1]) {
     if (scanner->block_depth < MAX_BLOCK_DEPTH && can_increment_format_depth(scanner)) {
       scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE_FALLBACK;
+
+      uint16_t indent_depth = get_table_stack(scanner) + scanner->block_depth;
+      scanner->indent_stack[indent_depth] = 0;
       reset_current_format_scope(scanner);
     } else {
       return false;
@@ -867,6 +913,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   buffer[size++] = (char)scanner->cached_heading_token;
   buffer[size++] = (char)scanner->in_macro;
   buffer[size++] = (char)scanner->in_argument;
+  buffer[size++] = (char)scanner->indent_type_stack_size;
   buffer[size++] = (char)scanner->simulate;
   buffer[size++] = (char)scanner->link_depth;
   buffer[size++] = (char)scanner->footnote_depth;
@@ -879,6 +926,9 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   }
   for (uint32_t i = 0; i < indent_count; i++) {
     buffer[size++] = (char)scanner->indent_stack[i];
+  }
+  for (uint32_t i = 0; i < INDENT_TYPE_STACK_SIZE; i++) {
+    buffer[size++] = (char)scanner->indent_type_stack[i];
   }
   for (uint32_t i = 0; i < format_count; i++) {
     buffer[size++] = (char)scanner->format_stack[i];
@@ -893,6 +943,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   memset(scanner->block_stack, 0, sizeof scanner->block_stack);
   memset(scanner->table_stack, 0, sizeof scanner->table_stack);
   memset(scanner->indent_stack, 0, sizeof scanner->indent_stack);
+  memset(scanner->indent_type_stack, 0, INDENT_TYPE_STACK_SIZE);
   memset(scanner->format_stack, 0, sizeof scanner->format_stack);
   scanner->heading_level = 0;
   scanner->heading_status = STATUS_NO_HEADING_SECTION;
@@ -901,6 +952,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->cached_heading_token = NO_CACHED;
   scanner->in_macro = false;
   scanner->in_argument = false;
+  scanner->indent_type_stack_size = 0;
   scanner->simulate = FLAG_NONE;
   scanner->link_depth = 0;
   scanner->footnote_depth = 0;
@@ -917,6 +969,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   uint8_t cached_heading_token = data[size++];
   uint8_t in_macro = data[size++];
   uint8_t in_argument = data[size++];
+  uint16_t indent_type_stack_size = data[size++];
   uint8_t simulate = data[size++];
   uint32_t saved_link_depth = data[size++];
   uint32_t saved_footnote_depth = data[size++];
@@ -943,7 +996,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   uint32_t indent_count = saved_block_depth + table_active + 1;
   uint32_t format_count = saved_block_depth + saved_link_depth + saved_footnote_depth + 1;
   size_t remaining = length - size;
-  if (remaining < (size_t)saved_block_depth + table_count + indent_count + format_count) return;
+  if (remaining < (size_t)saved_block_depth + table_count + indent_count + INDENT_TYPE_STACK_SIZE + format_count) return;
 
   for (uint32_t i = 0; i < saved_block_depth; i++) {
     if (!is_valid_block_type(data[block_offset + i])) return;
@@ -957,6 +1010,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   memcpy(scanner->block_stack, data + block_offset, saved_block_depth);
   memcpy(scanner->table_stack, data + table_offset, table_count);
   memcpy(scanner->indent_stack, data + indent_offset, indent_count);
+  memcpy(scanner->indent_type_stack, data + indent_offset, INDENT_TYPE_STACK_SIZE);
   memcpy(scanner->format_stack, data + format_offset, format_count);
 
   scanner->heading_level = heading_level;
@@ -966,6 +1020,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->cached_heading_token = cached_heading_token;
   scanner->in_macro = in_macro != 0;
   scanner->in_argument = in_argument != 0;
+  scanner->indent_type_stack_size = indent_type_stack_size;
   scanner->simulate = simulate;
   scanner->block_depth = saved_block_depth;
   scanner->link_depth = saved_link_depth;
@@ -979,6 +1034,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   uint8_t top_type = scanner->block_depth > 0 ? scanner->block_stack[scanner->block_depth - 1] : BLOCK_TYPE_NONE;
   uint16_t indent_depth = scanner->block_depth + get_table_stack(scanner);
   uint8_t current_indent_size = scanner->indent_stack[indent_depth];
+  uint8_t current_indent_type = get_top_indent_type(scanner);
 
   bool is_breakable_bracket = false;
   switch (top_type) {
@@ -1359,15 +1415,37 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         }
         
         if (size > UINT8_MAX) size = UINT8_MAX;
+
         // fprintf("---- current_indent_size: %d, size: %d\n", current_indent_size, size);
         if (current_indent_size > size && valid_symbols[PARAGRAPH_END]) {
           scanner->indent_stack[indent_depth]--;
+          remove_top_indent_type(scanner);
           lexer->result_symbol = PARAGRAPH_END;
           return true;
         }
+
+        if (lexer->lookahead == '*' && current_indent_size == size && valid_symbols[PARAGRAPH_END]) {
+          scanner->indent_stack[indent_depth]--;
+          remove_top_indent_type(scanner);
+          lexer->result_symbol = PARAGRAPH_END;
+          return true;
+        }
+
+        if (lexer->lookahead == '1' || lexer->lookahead == 'a' || lexer->lookahead == 'A' || lexer->lookahead == 'i' || lexer->lookahead == 'I') {
+          advance(lexer);
+          if (lexer->lookahead == '.' && current_indent_size == size && valid_symbols[PARAGRAPH_END]) {
+            scanner->indent_stack[indent_depth]--;
+            remove_top_indent_type(scanner);
+            lexer->result_symbol = PARAGRAPH_END;
+            return true;
+          }
+        }
       } else {
         // fprintf(stderr, "---- is newline, current_size: %d, size: %d, index: %d\n", current_size, size, index);
-        scanner->indent_stack[indent_depth] = 0;
+        for (uint8_t i = 0; i < scanner->indent_stack[indent_depth]; i++) {
+          scanner->indent_stack[indent_depth]--;
+          remove_top_indent_type(scanner);  
+        }
         if (valid_symbols[PARAGRAPH_END]) {
           lexer->result_symbol = PARAGRAPH_END;
           return true;
@@ -1414,7 +1492,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return false;
   }
 
-  // fprintf(stderr, "----- depth: %d, current_size: %d\n", indent_depth, current_indent_size);
+  // fprintf(stderr, "----- depth: %d, current_size: %d, current_type: %d\n", indent_depth, current_indent_size, current_indent_type);
   if (scanner->simulate == FLAG_NONE && lexer->lookahead == ' ' && lexer->get_column(lexer) < current_indent_size) {
     while (lexer->lookahead == ' ' && lexer->get_column(lexer) < current_indent_size) {
       advance(lexer);
@@ -1427,14 +1505,36 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     scanner->simulate == FLAG_NONE &&
     lexer->lookahead == ' ' &&
     lexer->get_column(lexer) == current_indent_size &&
-    valid_symbols[PARAGRAPH_START] &&
+    (valid_symbols[PARAGRAPH_START] || valid_symbols[UNORDERED_LIST_PARAGRAPH_START] || valid_symbols[ORDERED_LIST_PARAGRAPH_START]) &&
     scanner->indent_stack[indent_depth] < UINT8_MAX
   ) {
     // fprintf(stderr, "entering\n");
     advance(lexer);
     scanner->indent_stack[indent_depth]++;
-    lexer->result_symbol = PARAGRAPH_START;
-    return true;
+    mark_end(scanner, lexer);
+
+    if (lexer->lookahead == '*' && valid_symbols[UNORDERED_LIST_PARAGRAPH_START]) {
+      push_indent_type(scanner, INDENT_TYPE_UNORDERED_LIST_PARAGRAPH);
+      lexer->result_symbol = UNORDERED_LIST_PARAGRAPH_START;
+      return true;
+    }
+
+    if (lexer->lookahead == '1' || lexer->lookahead == 'a' || lexer->lookahead == 'A' || lexer->lookahead == 'i' || lexer->lookahead == 'I') {
+      advance(lexer);
+      if (lexer->lookahead == '.' && valid_symbols[ORDERED_LIST_PARAGRAPH_START]) {
+        push_indent_type(scanner, INDENT_TYPE_ORDERED_LIST_PARAGRAPH);
+        lexer->result_symbol = ORDERED_LIST_PARAGRAPH_START;
+        return true;
+      }
+    }
+
+    if (valid_symbols[PARAGRAPH_START]) {
+      push_indent_type(scanner, INDENT_TYPE_PARAGRAPH);
+      lexer->result_symbol = PARAGRAPH_START;
+      return true;
+    }
+    
+    return false;
   }
 
   // argument_end 처리
