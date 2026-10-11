@@ -851,8 +851,9 @@ static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, con
 }
 
 static bool register_paragraph_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  if (valid_symbols[PARAGRAPH_END]) {
-    scanner->indent_stack[scanner->block_depth + get_table_stack(scanner)]--;
+  uint16_t indent_depth = scanner->block_depth + get_table_stack(scanner);
+  if (valid_symbols[PARAGRAPH_END] && scanner->indent_stack[indent_depth] > 0) {
+    scanner->indent_stack[indent_depth]--;
     remove_top_indent_type(scanner);  
     lexer->result_symbol = PARAGRAPH_END;
     return true;
@@ -1173,10 +1174,15 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (lexer->lookahead == '|') {
       advance(lexer);
 
+      bool is_formatted = false;
+      uint32_t format_depth;
+      if (get_format_index(scanner, &format_depth)) {
+        is_formatted = scanner->format_stack[format_depth] > 0;
+      }
+      lexer->log(lexer, "-------- is_formatted: %d\n", is_formatted);
+      
       // table_row_start 처리
-      // fprintf(stderr, "current indent size: %d\n", current_indent_size);
-      lexer->log(lexer, "-------- scanner->indent_end_column: %d, lexer->get_column(lexer): %d, valid_symbols[TABLE_ROW_START]: %d", scanner->indent_end_column, lexer->get_column(lexer), valid_symbols[TABLE_ROW_START]);
-      if (!get_table_stack(scanner) && lexer->get_column(lexer) == scanner->indent_end_column + 2 && valid_symbols[TABLE_ROW_START]) {
+      if (!is_formatted && !get_table_stack(scanner) && lexer->get_column(lexer) == scanner->indent_end_column + 2 && valid_symbols[TABLE_ROW_START]) {
         mark_end(scanner, lexer);
         set_table_stack(scanner);
         lexer->result_symbol = TABLE_ROW_START;
@@ -1185,6 +1191,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
       // table_row_end 처리
       if (
+        !is_formatted && 
         get_table_stack(scanner) &&
         (
           (lexer->lookahead == '\r' || lexer->lookahead == '\n' || lexer->eof(lexer)) ||
@@ -1203,7 +1210,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       }
 
       // table_cell_split 처리
-      if (get_table_stack(scanner) && valid_symbols[TABLE_CELL_SPLIT]) {
+      if (!is_formatted && get_table_stack(scanner) && valid_symbols[TABLE_CELL_SPLIT]) {
         if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
         mark_end(scanner, lexer);
