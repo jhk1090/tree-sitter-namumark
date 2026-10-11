@@ -125,6 +125,7 @@ module.exports = grammar({
     $._paragraph_skip,
     $.unordered_list_paragraph_start,
     $.ordered_list_paragraph_start,
+    $.blockquote_paragraph_start,
     $._pipe,
     $._soft_line_prefix,
     $._soft_line_ending,
@@ -154,13 +155,13 @@ module.exports = grammar({
     paragraph: $ => seq($.paragraph_start, optional($.paragraph_content), $.paragraph_end),
     paragraph_content: $ => repeat1(choice($._node, $._paragraph_skip, $._paragraph)),
 
-    unordered_list_paragraph: $ => seq($.unordered_list_paragraph_start, token.immediate("*"), optional($.paragraph_content), $.paragraph_end),
+    unordered_list_paragraph: $ => seq($.unordered_list_paragraph_start, token.immediate(/\*( )?/), optional($.paragraph_content), $.paragraph_end),
 
-    ordered_list_paragraph: $ => seq($.ordered_list_paragraph_start, field("type", $.ordered_list_paragraph_type), optional(field("start_index", $.ordered_list_paragraph_start_index)), optional($.paragraph_content), $.paragraph_end),
-    ordered_list_paragraph_type: $ => token.immediate(/(1|a|A|i|I)\./),
-    ordered_list_paragraph_start_index: $ => token.immediate(/#[^ \n\r]{1,}/),
+    ordered_list_paragraph: $ => seq($.ordered_list_paragraph_start, token.immediate(/(1|a|A|i|I)\.(#[^ \n\r]{1,})?( )?/), optional($.paragraph_content), $.paragraph_end),
 
-    _paragraph: $ => choice($.paragraph, $.unordered_list_paragraph, $.ordered_list_paragraph),
+    blockquote_paragraph: $ => seq($.blockquote_paragraph_start, optional($.paragraph_content), $.paragraph_end),
+
+    _paragraph: $ => choice($.paragraph, $.unordered_list_paragraph, $.ordered_list_paragraph, $.blockquote_paragraph),
 
     table_row: $ => prec.right(seq(repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end))),
     table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
@@ -721,7 +722,7 @@ module.exports = grammar({
     ),
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
-      /[^ \[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
+      /[^ \[\]{}=#\r\n\\@'\-\~\_\^\,\|>]+/,
       prec(-10, token.immediate(' ')),
       prec(-10, token('=')),
       prec(-10, token('#')),
@@ -739,6 +740,7 @@ module.exports = grammar({
       prec(-10, token('^')),
       prec(-10, token(',')),
       $._pipe,
+      prec(-10, token('>'))
     )),
     text_inline: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
