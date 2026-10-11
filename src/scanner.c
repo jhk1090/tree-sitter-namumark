@@ -424,13 +424,9 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   return false;
 }
 
-static uint8_t match_heading_token(TSLexer *lexer, Scanner *scanner, bool preserve_start) {
+static uint8_t match_heading_token(TSLexer *lexer, Scanner *scanner) {
   if (lexer->get_column(lexer) != 0) return NO_HEADING_TOKEN;
   if (lexer->lookahead != '=') return NO_HEADING_TOKEN;
-
-  if (preserve_start) {
-    mark_end(scanner, lexer);
-  }
 
   uint8_t open_count = 0;
   while (lexer->lookahead == '=' && open_count < 6) {
@@ -449,9 +445,7 @@ static uint8_t match_heading_token(TSLexer *lexer, Scanner *scanner, bool preser
 
   if (open_count == 0 || open_count > 6 || lexer->lookahead != ' ') { return NO_HEADING_TOKEN; }
 
-  if (!preserve_start) {
-    mark_end(scanner, lexer);
-  }
+  mark_end(scanner, lexer);
 
   bool has_trailing_space = false;
   bool has_closing_hash = false;
@@ -521,7 +515,7 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *va
 
   if (scanner->cached_heading_token == NO_CACHED) {
     scanner->simulate = FLAG_SIMULATE_HEADING;
-    scanner->cached_heading_token = match_heading_token(lexer, scanner, false);
+    scanner->cached_heading_token = match_heading_token(lexer, scanner);
     scanner->simulate = FLAG_NONE;
   }
   if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
@@ -572,7 +566,7 @@ static bool consume_scale_block(TSLexer *lexer, Scanner *scanner, const bool *va
   } else {
     if (scanner->cached_heading_token == NO_CACHED) {
       scanner->simulate = FLAG_SIMULATE_HEADING;
-      scanner->cached_heading_token = match_heading_token(lexer, scanner, false);
+      scanner->cached_heading_token = match_heading_token(lexer, scanner);
       scanner->simulate = FLAG_NONE;
     }
     if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
@@ -643,7 +637,7 @@ static bool consume_color_block(TSLexer *lexer, Scanner* scanner, const bool *va
   } else {
     if (scanner->cached_heading_token == NO_CACHED) {
       scanner->simulate = FLAG_SIMULATE_HEADING;
-      scanner->cached_heading_token = match_heading_token(lexer, scanner, false);
+      scanner->cached_heading_token = match_heading_token(lexer, scanner);
       scanner->simulate = FLAG_NONE;
     }
     if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
@@ -845,20 +839,6 @@ static bool close_format_implicit_ends(TSLexer *lexer, Scanner *scanner, const b
   if (EXCLUDED_FLAG != FLAG_SUBSCRIPT && register_subscript_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_UNDERLINE && register_underline_implicit_end(lexer, scanner, valid_symbols)) return true;
   return false;
-}
-
-static inline bool should_preserve_heading_start(const Scanner *scanner, const bool *valid_symbols, bool is_breakable_bracket) {
-  return (is_breakable_bracket) ||
-         (scanner->in_macro && valid_symbols[MACRO_IMPLICIT_END]) ||
-         (scanner->link_depth > 0 && valid_symbols[LINK_IMPLICIT_END]) ||
-         (scanner->footnote_depth > 0 && valid_symbols[FOOTNOTE_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_BOLD) && valid_symbols[BOLD_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_ITALIC) && valid_symbols[ITALIC_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_STRIKE) && valid_symbols[STRIKE_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_STRIKE2) && valid_symbols[STRIKE2_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_SUPERSCRIPT) && valid_symbols[SUPERSCRIPT_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_SUBSCRIPT) && valid_symbols[SUBSCRIPT_IMPLICIT_END]) ||
-         (has_current_style(scanner, FLAG_UNDERLINE) && valid_symbols[UNDERLINE_IMPLICIT_END]);
 }
 
 static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
@@ -1537,7 +1517,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
     if (scanner->cached_heading_token == NO_CACHED) {
       scanner->simulate = FLAG_SIMULATE_HEADING;
-      scanner->cached_heading_token = match_heading_token(lexer, scanner, false);
+      scanner->cached_heading_token = match_heading_token(lexer, scanner);
       scanner->simulate = FLAG_NONE;
     }
     
@@ -1780,7 +1760,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     }
   
     if ((top_type == BLOCK_TYPE_NONE || is_breakable_bracket)) {
-      uint8_t heading_token = match_heading_token(lexer, scanner, should_preserve_heading_start(scanner, valid_symbols, is_breakable_bracket));
+      uint8_t heading_token = match_heading_token(lexer, scanner);
       if (heading_token != NO_HEADING_TOKEN) {
         if (valid_symbols[heading_token]) {
           uint8_t offset = heading_token - HEADING1_START + 1;

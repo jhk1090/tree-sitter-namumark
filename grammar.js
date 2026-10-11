@@ -138,7 +138,7 @@ module.exports = grammar({
   rules: {
     source_file: ($) =>
       seq(
-        optional(seq(alias(repeat1(choice($._node, $._paragraph)), $.section), choice(seq($._line_ending, $._newline), $._eof))),
+        optional(seq(alias(repeat(choice($._node, $._paragraph)), $.section), choice(seq($._line_ending, $._newline), $._eof))),
         repeat(seq($.section, choice(seq($._line_ending, $._newline), $._eof))),
       ),
     section: $ => prec.right(
