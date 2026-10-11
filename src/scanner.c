@@ -850,6 +850,16 @@ static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, con
   return false;
 }
 
+static bool register_paragraph_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (valid_symbols[PARAGRAPH_END]) {
+    scanner->indent_stack[scanner->block_depth + get_table_stack(scanner)]--;
+    remove_top_indent_type(scanner);  
+    lexer->result_symbol = PARAGRAPH_END;
+    return true;
+  }
+  return false;
+}
+
 static bool consume_format(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t FLAG, uint8_t START_TOKEN_TYPE) {
   if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
         
@@ -1085,13 +1095,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
-
-    if (valid_symbols[PARAGRAPH_END]) {
-      scanner->indent_stack[indent_depth]--;
-      remove_top_indent_type(scanner);  
-      lexer->result_symbol = PARAGRAPH_END;
-      return true;
-    }
+    if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
     if (valid_symbols[TOKEN_EOF]) {
       lexer->result_symbol = TOKEN_EOF;
@@ -1122,13 +1126,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
-
-      if (valid_symbols[PARAGRAPH_END]) {
-        scanner->indent_stack[indent_depth]--;
-        remove_top_indent_type(scanner);  
-        lexer->result_symbol = PARAGRAPH_END;
-        return true;
-      }
+      if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
       if (valid_symbols[BRACKET_END]) {
         mark_end(scanner, lexer);
@@ -1193,13 +1191,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           (lexer->lookahead == '}' && scanner->block_depth > 0 && consume_string(lexer, "}}}"))
         )
       ) {
-        // mark_end???
-        if (valid_symbols[PARAGRAPH_END]) {
-          scanner->indent_stack[indent_depth]--;
-          remove_top_indent_type(scanner);  
-          lexer->result_symbol = PARAGRAPH_END;
-          return true;
-        }
+        if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
         if (valid_symbols[TABLE_ROW_END]) {
           mark_end(scanner, lexer);
@@ -1212,12 +1204,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
       // table_cell_split 처리
       if (get_table_stack(scanner) && valid_symbols[TABLE_CELL_SPLIT]) {
-        if (valid_symbols[PARAGRAPH_END]) {
-          scanner->indent_stack[indent_depth]--;
-          remove_top_indent_type(scanner);  
-          lexer->result_symbol = PARAGRAPH_END;
-          return true;
-        }
+        if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
         mark_end(scanner, lexer);
         lexer->result_symbol = TABLE_CELL_SPLIT;
@@ -1497,21 +1484,9 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           break;
         }
 
-        if (!is_valid && valid_symbols[PARAGRAPH_END]) {
-          // fprintf(stderr, "----------- remove\n");
-          scanner->indent_stack[indent_depth]--;
-          remove_top_indent_type(scanner);
-          lexer->result_symbol = PARAGRAPH_END;
-          return true;
-        }
+        if (!is_valid && register_paragraph_end(lexer, scanner, valid_symbols)) return true;
       } else {
-        // fprintf(stderr, "---- is newline, current_size: %d, size: %d, index: %d\n", current_size, size, index);
-        if (valid_symbols[PARAGRAPH_END]) {
-          scanner->indent_stack[indent_depth]--;
-          remove_top_indent_type(scanner);  
-          lexer->result_symbol = PARAGRAPH_END;
-          return true;
-        }
+        if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
       }
     }
 
