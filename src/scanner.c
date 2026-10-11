@@ -120,6 +120,8 @@ enum TokenType {
   ORDERED_LIST_PARAGRAPH_START,
   BLOCKQUOTE_PARAGRAPH_START,
   PIPE,
+  GREATER_THAN_SIGN,
+  SPACE,
   SOFT_LINE_PREFIX,
   SOFT_LINE_ENDING,
   LINE_ENDING,
@@ -1105,6 +1107,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
     if (valid_symbols[PARAGRAPH_END]) {
+      scanner->indent_stack[indent_depth]--;
+      remove_top_indent_type(scanner);  
       lexer->result_symbol = PARAGRAPH_END;
       return true;
     }
@@ -1140,6 +1144,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
 
       if (valid_symbols[PARAGRAPH_END]) {
+        scanner->indent_stack[indent_depth]--;
+        remove_top_indent_type(scanner);  
         lexer->result_symbol = PARAGRAPH_END;
         return true;
       }
@@ -1209,10 +1215,12 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       ) {
         // mark_end???
         if (valid_symbols[PARAGRAPH_END]) {
-          // clear_table_stack(scanner);
+          scanner->indent_stack[indent_depth]--;
+          remove_top_indent_type(scanner);  
           lexer->result_symbol = PARAGRAPH_END;
           return true;
         }
+
         if (valid_symbols[TABLE_ROW_END]) {
           mark_end(scanner, lexer);
           clear_table_stack(scanner);
@@ -1224,6 +1232,13 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
       // table_cell_split 처리
       if (get_table_stack(scanner) && valid_symbols[TABLE_CELL_SPLIT]) {
+        if (valid_symbols[PARAGRAPH_END]) {
+          scanner->indent_stack[indent_depth]--;
+          remove_top_indent_type(scanner);  
+          lexer->result_symbol = PARAGRAPH_END;
+          return true;
+        }
+
         mark_end(scanner, lexer);
         lexer->result_symbol = TABLE_CELL_SPLIT;
         return true;    
@@ -1502,7 +1517,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           break;
         }
 
-        if (!is_valid) {
+        if (!is_valid && valid_symbols[PARAGRAPH_END]) {
           // fprintf(stderr, "----------- remove\n");
           scanner->indent_stack[indent_depth]--;
           remove_top_indent_type(scanner);
@@ -1511,11 +1526,9 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         }
       } else {
         // fprintf(stderr, "---- is newline, current_size: %d, size: %d, index: %d\n", current_size, size, index);
-        for (uint8_t i = 0; i < scanner->indent_stack[indent_depth]; i++) {
+        if (valid_symbols[PARAGRAPH_END]) {
           scanner->indent_stack[indent_depth]--;
           remove_top_indent_type(scanner);  
-        }
-        if (valid_symbols[PARAGRAPH_END]) {
           lexer->result_symbol = PARAGRAPH_END;
           return true;
         }
@@ -1723,6 +1736,18 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     scanner->indent_skipped_index++;
     scanner->indent_end_column = lexer->get_column(lexer);
     lexer->result_symbol = BLOCKQUOTE_PARAGRAPH_START;
+    return true;
+  }
+
+  if (lexer->lookahead == ' ' && valid_symbols[SPACE]) {
+    advance(lexer);
+    lexer->result_symbol = SPACE;
+    return true;
+  }
+
+  if (lexer->lookahead == '>' && valid_symbols[GREATER_THAN_SIGN]) {
+    advance(lexer);
+    lexer->result_symbol = GREATER_THAN_SIGN;
     return true;
   }
 

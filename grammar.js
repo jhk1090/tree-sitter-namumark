@@ -127,6 +127,8 @@ module.exports = grammar({
     $.ordered_list_paragraph_start,
     $.blockquote_paragraph_start,
     $._pipe,
+    $._greater_than_sign,
+    $._space,
     $._soft_line_prefix,
     $._soft_line_ending,
     $._line_ending,
@@ -723,7 +725,7 @@ module.exports = grammar({
     escape: $ => token(/\\./),
     text: $ => prec(-1, choice(
       /[^ \[\]{}=#\r\n\\@'\-\~\_\^\,\|>]+/,
-      prec(-10, token.immediate(' ')),
+      $._space,
       prec(-10, token('=')),
       prec(-10, token('#')),
       prec(1, $._newline),
@@ -740,7 +742,7 @@ module.exports = grammar({
       prec(-10, token('^')),
       prec(-10, token(',')),
       $._pipe,
-      prec(-10, token('>'))
+      $._greater_than_sign,
     )),
     text_inline: $ => prec(-1, choice(
       /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
