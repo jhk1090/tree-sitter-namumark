@@ -1186,7 +1186,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (get_format_index(scanner, &format_depth)) {
         is_formatted = scanner->format_stack[format_depth] > 0;
       }
-      lexer->log(lexer, "-------- is_formatted: %d\n", is_formatted);
       
       // table_row_start 처리
       if (!is_formatted && !get_table_stack(scanner) && lexer->get_column(lexer) == scanner->indent_end_column + 2 && valid_symbols[TABLE_ROW_START]) {
@@ -1485,7 +1484,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         bool to_be_invalid = false;
         for (size_t i = first_index; i < scanner->indent_type_stack_size; i++) {
           type = get_indent_type(scanner, i);
-          // fprintf(stderr, "======== indent_type_stack_size: %d, indent_stack: %d, i: %d, type: %d\n", scanner->indent_type_stack_size, scanner->indent_stack[indent_depth], i, type);
 
           if (to_be_invalid) {
             is_valid = false;
@@ -1567,8 +1565,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return false;
   }
 
-  // fprintf(stderr, "----- indent_type_stack_first_index: %d, scanner->indent_skipped_index: %d, scanner->indent_type_stack_size: %d\n", indent_type_stack_first_index, scanner->indent_skipped_index, scanner->indent_type_stack_size);
-  // fprintf(stderr, "======== indent_type_stack_size: %d\n", scanner->indent_type_stack_size);
   if (
     scanner->simulate == FLAG_NONE &&
     (lexer->lookahead == ' ' || lexer->lookahead == '>') &&
@@ -1576,8 +1572,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     indent_type_stack_first_index + scanner->indent_skipped_index < scanner->indent_type_stack_size
   ) {
     uint8_t type = get_indent_type(scanner, indent_type_stack_first_index + scanner->indent_skipped_index);
-
-    lexer->log(lexer, "----- indent_type_stack_first_index: %d, scanner->indent_skipped_index: %d, scanner->indent_type_stack_size: %d, type: %d\n", indent_type_stack_first_index, scanner->indent_skipped_index, scanner->indent_type_stack_size, type);
     
     if ((type == INDENT_TYPE_PARAGRAPH || type == INDENT_TYPE_UNORDERED_LIST_PARAGRAPH || type == INDENT_TYPE_ORDERED_LIST_PARAGRAPH) && lexer->lookahead == ' ') {
       advance(lexer);
@@ -1626,7 +1620,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     lexer->get_column(lexer) == scanner->indent_end_column &&
     indent_type_stack_first_index + scanner->indent_skipped_index >= scanner->indent_type_stack_size
   ) {
-    // fprintf(stderr, "entering\n");
     advance(lexer);
     scanner->indent_stack[indent_depth]++;
     mark_end(scanner, lexer);
@@ -1697,7 +1690,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
       scanner->indent_skipped_index++;
       scanner->indent_end_column = lexer->get_column(lexer);
-      // fprintf(stderr, "--- indent_end_column: %d\n", scanner->indent_end_column);
       lexer->result_symbol = PARAGRAPH_START;
       return true;
     }
@@ -1705,7 +1697,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return false;
   }
 
-  // fprintf(stderr, "--- indent_end_column: %d\n", scanner->indent_end_column);
   if (
     scanner->simulate == FLAG_NONE &&
     lexer->lookahead == '>' &&
@@ -1715,7 +1706,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     lexer->get_column(lexer) == scanner->indent_end_column &&
     indent_type_stack_first_index + scanner->indent_skipped_index >= scanner->indent_type_stack_size
   ) {
-    // fprintf(stderr, "entering\n");
     advance(lexer);
     scanner->indent_stack[indent_depth]++;
     mark_end(scanner, lexer);
@@ -1725,7 +1715,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       return false;
     }
 
-    // fprintf(stderr, "======== (in blockquote) indent_type_stack_size: %d\n", scanner->indent_type_stack_size);
     scanner->indent_skipped_index++;
     scanner->indent_end_column = lexer->get_column(lexer);
     lexer->result_symbol = BLOCKQUOTE_PARAGRAPH_START;
