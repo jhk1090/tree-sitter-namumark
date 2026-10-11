@@ -120,6 +120,8 @@ module.exports = grammar({
     $.table_argument_end,
     $.table_argument_implicit_end,
     $.table_special_argument,
+    $.horizontal_line,
+    $.horizontal_line_implicit,
     $.paragraph_start,
     $.paragraph_end,
     $._paragraph_skip,
@@ -226,6 +228,8 @@ module.exports = grammar({
       $.subscript,
       $.underline,
       $.footnote,
+      $.horizontal_line,
+      $.horizontal_line_implicit,
       $.table_row
     ),
     _node_table: $ => choice(
@@ -246,7 +250,9 @@ module.exports = grammar({
       $.superscript,
       $.subscript,
       $.underline,
-      $.footnote
+      $.footnote,
+      $.horizontal_line,
+      $.horizontal_line_implicit,
     ),
     _node_inline: $ => choice(
       $._block_inline,

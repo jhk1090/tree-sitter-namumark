@@ -113,6 +113,8 @@ enum TokenType {
   TABLE_ARGUMENT_END,
   TABLE_ARGUMENT_IMPLICIT_END,
   TABLE_SPECIAL_ARGUMENT,
+  HORIZONTAL_LINE,
+  HORIZONTAL_LINE_IMPLICIT,
   PARAGRAPH_START,
   PARAGRAPH_END,
   PARAGRAPH_SKIP,
@@ -153,6 +155,7 @@ enum IndentType {
 typedef struct {
   bool in_macro;
   bool in_argument;
+  bool is_horizontal_line_valid;
   uint8_t heading_level;
   uint8_t heading_status;
   uint8_t heading_levels;
@@ -173,7 +176,7 @@ typedef struct {
 } Scanner;
 
 enum {
-  SERIALIZED_HEADER_SIZE = 19,
+  SERIALIZED_HEADER_SIZE = 20,
   FORMAT_STACK_SIZE = 256,
   MAX_BLOCK_DEPTH = UINT8_MAX
 };
@@ -930,6 +933,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   buffer[size++] = (char)scanner->cached_heading_token;
   buffer[size++] = (char)scanner->in_macro;
   buffer[size++] = (char)scanner->in_argument;
+  buffer[size++] = (char)scanner->is_horizontal_line_valid;
   buffer[size++] = (char)(scanner->indent_type_stack_size & 0xff);
   buffer[size++] = (char)(scanner->indent_type_stack_size >> 8);
   buffer[size++] = (char)(scanner->indent_skipped_index & 0xff);
@@ -976,6 +980,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->cached_heading_token = NO_CACHED;
   scanner->in_macro = false;
   scanner->in_argument = false;
+  scanner->is_horizontal_line_valid = true;
   scanner->indent_type_stack_size = 0;
   scanner->indent_skipped_index = 0;
   scanner->indent_end_column = 0;
@@ -995,6 +1000,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   uint8_t cached_heading_token = data[size++];
   uint8_t in_macro = data[size++];
   uint8_t in_argument = data[size++];
+  uint8_t is_horizontal_line_valid = data[size++];
   uint16_t indent_type_stack_size = data[size++];
   indent_type_stack_size |= (uint16_t)data[size++] << 8;
   uint16_t indent_skipped_index = data[size++];
@@ -1014,7 +1020,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
       (heading_levels & 0xc0) != 0 ||
       is_hidden_heading > 1 ||
       !is_valid_cached_heading_token(cached_heading_token) ||
-      in_macro > 1 || in_argument > 1 ||
+      in_macro > 1 || in_argument > 1 || is_horizontal_line_valid > 1 ||
       indent_type_stack_size > INDENT_TYPE_STACK_CAPACITY ||
       indent_skipped_index > INDENT_TYPE_STACK_CAPACITY ||
       indent_end_column > UINT32_MAX ||
@@ -1058,6 +1064,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->cached_heading_token = cached_heading_token;
   scanner->in_macro = in_macro != 0;
   scanner->in_argument = in_argument != 0;
+  scanner->is_horizontal_line_valid = is_horizontal_line_valid != 0;
   scanner->indent_type_stack_size = indent_type_stack_size;
   scanner->indent_skipped_index = indent_skipped_index;
   scanner->indent_end_column = indent_end_column;
@@ -1371,6 +1378,30 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return false;
   }
 
+  if (scanner->simulate == FLAG_NONE && lexer->lookahead == '-' && lexer->get_column(lexer) == scanner->indent_end_column && scanner->is_horizontal_line_valid) {
+    size_t size = 0;
+    while (lexer->lookahead == '-') {
+      advance(lexer);
+      size++;
+    }
+
+    mark_end(scanner, lexer);
+
+    if (lexer->lookahead == '\r' || lexer->lookahead == '\n' || lexer->eof(lexer)) {
+      if (size >= 4 && size < 10 && valid_symbols[HORIZONTAL_LINE]) {
+        lexer->result_symbol = HORIZONTAL_LINE;
+        return true;
+      }
+      if (size >= 10 && valid_symbols[HORIZONTAL_LINE_IMPLICIT]) {
+        lexer->result_symbol = HORIZONTAL_LINE_IMPLICIT;
+        return true;
+      }
+    }
+
+    scanner->is_horizontal_line_valid = false;
+    return false;
+  }
+  
   // strike 처리
   if (scanner->simulate == FLAG_NONE && lexer->lookahead == '-') {
     mark_end(scanner, lexer);
@@ -1432,9 +1463,9 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (scanner->cached_heading_token == NO_HEADING_TOKEN) {
         scanner->cached_heading_token = NO_CACHED;
       }
+      scanner->is_horizontal_line_valid = true;
       scanner->indent_skipped_index = 0;
       scanner->indent_end_column = 0;
-      lexer->log(lexer, "----- indent_type_stack_first_index: %d, scanner->indent_skipped_index: %d, scanner->indent_type_stack_size: %d\n", indent_type_stack_first_index, scanner->indent_skipped_index, scanner->indent_type_stack_size);
 
       mark_end(scanner, lexer);
       lexer->result_symbol = SOFT_LINE_ENDING;
