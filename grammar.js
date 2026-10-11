@@ -7,7 +7,7 @@ const no_arg_macros = ["clearfix", "date", "datetime", "각주", "footnote", "br
 
 const file_link_properties = ["align", "bgcolor", "border-radius", "height", "object-fit", "rendering", "theme", "width"]
 
-const required_value_table_arguments = [ "tablecolor", "tablebgcolor", "tablebordercolor", "bgcolor", "colbgcolor", "rowbgcolor", "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "tablealign", "width", "height" ]
+const required_value_table_arguments = [ "tablealign", "tablewidth", "tablecolor", "tablebgcolor", "tablebordercolor", "table align", "table width", "table color", "table bgcolor", "table bordercolor", "bgcolor", "colbgcolor", "rowbgcolor", "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "tablealign", "width", "height" ]
 const no_value_table_arguments = ["thead", "sortable", "keepall", "rowkeepall", "colkeepall", "nopad"]
 
 

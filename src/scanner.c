@@ -1286,7 +1286,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     char buf[32] = {0};
     size_t len = 0;
 
-    while (iswalnum(lexer->lookahead)) {
+    while (iswalnum(lexer->lookahead) || lexer->lookahead == ' ') {
       if (len < 31) {
         buf[len++] = (char)lexer->lookahead;
       }
@@ -1297,8 +1297,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     if (len == 0) return false;
 
     static const char *const ALLOWED_TABLE_ARGUMENT_NAME[] = {
-      "tablecolor", "tablebgcolor", "tablebordercolor", "bgcolor", "colbgcolor", "rowbgcolor",
-      "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "tablealign", "width", "height",
+      "tablealign", "tablewidth", "tablecolor", "tablebgcolor", "tablebordercolor", "table align", "table width", "table color", "table bgcolor", "table bordercolor", "bgcolor", "colbgcolor", "rowbgcolor",
+      "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "width", "height",
       "thead", "sortable", "keepall", "rowkeepall", "colkeepall", "nopad"
     };
     static const size_t COUNT = sizeof(ALLOWED_TABLE_ARGUMENT_NAME) / sizeof(ALLOWED_TABLE_ARGUMENT_NAME[0]);
