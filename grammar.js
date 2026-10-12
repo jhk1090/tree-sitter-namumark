@@ -733,7 +733,7 @@ module.exports = grammar({
       $._soft_line_prefix,
       $._soft_line_ending
     ),
-    escape: $ => token(/\\./),
+    escape: $ => token(/\\(.)?/),
     text: $ => prec(-1, choice(
       /[^ \[\]{}=#\r\n\\@'\-\~\_\^\,\|>]+/,
       $._space,
