@@ -756,6 +756,15 @@ static bool consume_argument(TSLexer *lexer, Scanner *scanner) {
   return false;
 }
 
+static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
+    scanner->in_argument = false;
+    lexer->result_symbol = ARGUMENT_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
+
 static bool register_paragraph_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   if (valid_symbols[PARAGRAPH_END] && remove_top_paragraph(scanner)) {
     lexer->result_symbol = PARAGRAPH_END;
@@ -809,6 +818,7 @@ static bool register_table_row_end(TSLexer *lexer, Scanner *scanner, const bool 
 
   if (is_formatted || !get_table_stack(scanner) || lexer->get_column(lexer) != scanner->table_end_column + offset) return false;
 
+  if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
   if (valid_symbols[TABLE_ROW_END]) {
@@ -884,15 +894,6 @@ static bool close_format_implicit_ends(TSLexer *lexer, Scanner *scanner, const b
   if (EXCLUDED_FLAG != FLAG_SUPERSCRIPT && register_superscript_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_SUBSCRIPT && register_subscript_implicit_end(lexer, scanner, valid_symbols)) return true;
   if (EXCLUDED_FLAG != FLAG_UNDERLINE && register_underline_implicit_end(lexer, scanner, valid_symbols)) return true;
-  return false;
-}
-
-static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
-    scanner->in_argument = false;
-    lexer->result_symbol = ARGUMENT_IMPLICIT_END;
-    return true;
-  }
   return false;
 }
 
@@ -1251,13 +1252,18 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       }
 
       // table_cell_split 처리
-      if (!is_formatted && get_table_stack(scanner) && valid_symbols[TABLE_CELL_SPLIT]) {
+      if (!is_formatted && get_table_stack(scanner)) {
+        if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
         if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
-        mark_end(scanner, lexer);
-        scanner->table_end_column = lexer->get_column(lexer);
-        lexer->result_symbol = TABLE_CELL_SPLIT;
-        return true;    
+        if (valid_symbols[TABLE_CELL_SPLIT]) {
+          mark_end(scanner, lexer);
+          scanner->table_end_column = lexer->get_column(lexer);
+          lexer->result_symbol = TABLE_CELL_SPLIT;
+          return true;    
+        }
+
+        return false;
       }
     } 
     else if (!is_formatted && !get_table_stack(scanner) && lexer->get_column(lexer) == scanner->paragraph_end_column + 1 && valid_symbols[TABLE_CAPTION_START]) {

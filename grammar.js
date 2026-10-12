@@ -724,7 +724,7 @@ module.exports = grammar({
         prec(-10, token(')')),
         prec(-10, token('[')),
         prec(-10, token(']')),
-        prec(-10, token('|')),
+        $._pipe,
         prec(-10, token('\'')),
         prec(-10, token('-')),
         prec(-10, token('~')),
