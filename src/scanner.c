@@ -187,6 +187,22 @@ enum {
 
 // --- Helper 함수들 ---
 
+static inline void set_table_stack(Scanner* s) {
+  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
+    s->table_stack[s->block_depth / 8] |= (uint8_t)(1u << (s->block_depth % 8));
+}
+
+static inline void clear_table_stack(Scanner* s) {
+  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
+    s->table_stack[s->block_depth / 8] &= (uint8_t)~(1u << (s->block_depth % 8));
+}
+
+static inline bool get_table_stack(const Scanner* s) {
+  return s->block_depth <= MAX_BLOCK_DEPTH &&
+    s->block_depth / 8 < sizeof s->table_stack &&
+    (s->table_stack[s->block_depth / 8] & (1u << (s->block_depth % 8))) != 0;
+}
+
 static bool is_valid_paragraph_type_stack(const uint8_t *stack, uint16_t count) {
   if (count > PARAGRAPH_TYPE_STACK_CAPACITY) return false;
 
@@ -197,8 +213,24 @@ static bool is_valid_paragraph_type_stack(const uint8_t *stack, uint16_t count) 
   return true;
 }
 
-static bool push_paragraph_type(Scanner* scanner, uint8_t type) {
+static bool is_valid_paragraph_state(const uint8_t *paragraph_stack, uint32_t paragraph_count, uint16_t paragraph_type_stack_size) {
+  if (paragraph_count > MAX_PARAGRAPH_COUNT) return false;
+
+  uint32_t total = 0;
+  for (uint32_t i = 0; i < paragraph_count; i++) {
+    total += paragraph_stack[i];
+    if (total > paragraph_type_stack_size) return false;
+  }
+  return total == paragraph_type_stack_size;
+}
+
+static bool push_paragraph(Scanner* scanner, uint8_t type) {
+  uint16_t paragraph_depth = scanner->block_depth + get_table_stack(scanner);
+
+  if (scanner->paragraph_stack[paragraph_depth] >= UINT8_MAX) return false;
   if (scanner->paragraph_type_stack_size >= PARAGRAPH_TYPE_STACK_CAPACITY) return false;
+
+  scanner->paragraph_stack[paragraph_depth]++;
 
   uint16_t index = scanner->paragraph_type_stack_size++;
   uint16_t byte_index = index / 4;
@@ -209,10 +241,14 @@ static bool push_paragraph_type(Scanner* scanner, uint8_t type) {
   return true;
 }
 
-static void remove_top_paragraph_type(Scanner *scanner) {
-  if (scanner->paragraph_type_stack_size > 0) {
+static bool remove_top_paragraph(Scanner *scanner) {
+  uint16_t paragraph_depth = scanner->block_depth + get_table_stack(scanner);
+  if (scanner->paragraph_stack[paragraph_depth] > 0 && scanner->paragraph_type_stack_size > 0) {
+    scanner->paragraph_stack[paragraph_depth]--;
     scanner->paragraph_type_stack_size--;
+    return true;
   }
+  return false;
 }
 
 static uint8_t get_paragraph_type(Scanner *scanner, uint16_t index) {
@@ -228,22 +264,6 @@ static uint8_t get_paragraph_type(Scanner *scanner, uint16_t index) {
 
 static uint8_t get_top_paragraph_type(Scanner *scanner) {
   return get_paragraph_type(scanner, scanner->paragraph_type_stack_size - 1);
-}
-
-static inline void set_table_stack(Scanner* s) {
-  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
-    s->table_stack[s->block_depth / 8] |= (uint8_t)(1u << (s->block_depth % 8));
-}
-
-static inline void clear_table_stack(Scanner* s) {
-  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
-    s->table_stack[s->block_depth / 8] &= (uint8_t)~(1u << (s->block_depth % 8));
-}
-
-static inline bool get_table_stack(const Scanner* s) {
-  return s->block_depth <= MAX_BLOCK_DEPTH &&
-    s->block_depth / 8 < sizeof s->table_stack &&
-    (s->table_stack[s->block_depth / 8] & (1u << (s->block_depth % 8))) != 0;
 }
 
 static inline bool get_format_index(const Scanner *scanner, uint32_t *index) {
@@ -403,9 +423,6 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   if (valid_symbols[TOKEN_TYPE]) {
     if (scanner->block_depth < MAX_BLOCK_DEPTH && can_increment_format_depth(scanner)) {
       scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE;
-
-      uint16_t paragraph_depth = get_table_stack(scanner) + scanner->block_depth;
-      scanner->paragraph_stack[paragraph_depth] = 0;
       reset_current_format_scope(scanner);
     } else {
       return false;
@@ -417,9 +434,6 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   if (BLOCK_TYPE != BLOCK_TYPE_FALLBACK && valid_symbols[TOKEN_TYPE + 1]) {
     if (scanner->block_depth < MAX_BLOCK_DEPTH && can_increment_format_depth(scanner)) {
       scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE_FALLBACK;
-
-      uint16_t paragraph_depth = get_table_stack(scanner) + scanner->block_depth;
-      scanner->paragraph_stack[paragraph_depth] = 0;
       reset_current_format_scope(scanner);
     } else {
       return false;
@@ -866,10 +880,7 @@ static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, con
 }
 
 static bool register_paragraph_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  uint16_t paragraph_depth = scanner->block_depth + get_table_stack(scanner);
-  if (valid_symbols[PARAGRAPH_END] && scanner->paragraph_stack[paragraph_depth] > 0) {
-    scanner->paragraph_stack[paragraph_depth]--;
-    remove_top_paragraph_type(scanner);  
+  if (valid_symbols[PARAGRAPH_END] && remove_top_paragraph(scanner)) {
     lexer->result_symbol = PARAGRAPH_END;
     return true;
   }
@@ -923,6 +934,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   size_t total_size = SERIALIZED_HEADER_SIZE + scanner->block_depth + table_count +
     paragraph_count + sizeof scanner->paragraph_type_stack + format_count;
   if (total_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE ||
+      !is_valid_paragraph_state(scanner->paragraph_stack, paragraph_count, scanner->paragraph_type_stack_size) ||
       !is_valid_paragraph_type_stack(scanner->paragraph_type_stack, scanner->paragraph_type_stack_size) ||
       scanner->heading_level > 6 ||
       scanner->heading_status > STATUS_HEADING_SECTION ||
@@ -1066,7 +1078,8 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   size_t paragraph_offset = table_offset + table_count;
   size_t paragraph_type_offset = paragraph_offset + paragraph_count;
   size_t format_offset = paragraph_type_offset + PARAGRAPH_TYPE_STACK_SIZE;
-  if (!is_valid_paragraph_type_stack(data + paragraph_type_offset, paragraph_type_stack_size)) return;
+  if (!is_valid_paragraph_state(data + paragraph_offset, paragraph_count, paragraph_type_stack_size) ||
+      !is_valid_paragraph_type_stack(data + paragraph_type_offset, paragraph_type_stack_size)) return;
   for (uint32_t i = 0; i < format_count; i++) {
     if ((data[format_offset + i] & 0x80) != 0) return;
   }
@@ -1228,7 +1241,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     advance(lexer);
     if (!is_formatted && get_table_stack(scanner) && valid_symbols[TABLE_CAPTION_END]) {
       mark_end(scanner, lexer);
-      scanner->paragraph_stack[paragraph_depth] = 0;
       lexer->result_symbol = TABLE_CAPTION_END;
       return true;
     }
@@ -1240,7 +1252,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (!is_formatted && !get_table_stack(scanner) && lexer->get_column(lexer) == scanner->paragraph_end_column + 2 && valid_symbols[TABLE_ROW_START]) {
         mark_end(scanner, lexer);
         set_table_stack(scanner);
-        scanner->paragraph_stack[++paragraph_depth] = 0; // set_table_stack 이후 paragraph_depth는 갱신되지 않음.
         lexer->result_symbol = TABLE_ROW_START;
         return true;
       }
@@ -1531,12 +1542,10 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       }
 
       if (lexer->lookahead == ' ' || lexer->lookahead == '>') {
-        uint16_t first_index = scanner->paragraph_type_stack_size - scanner->paragraph_stack[paragraph_depth];
-
         uint8_t type = PARAGRAPH_TYPE_FALLBACK;
         bool is_valid = true;
         bool to_be_invalid = false;
-        for (size_t i = first_index; i < scanner->paragraph_type_stack_size; i++) {
+        for (size_t i = paragraph_type_stack_first_index; i < scanner->paragraph_type_stack_size; i++) {
           type = get_paragraph_type(scanner, i);
 
           if (to_be_invalid) {
@@ -1670,13 +1679,10 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     scanner->simulate == FLAG_NONE &&
     lexer->lookahead == ' ' &&
     (valid_symbols[PARAGRAPH_START] || valid_symbols[UNORDERED_LIST_PARAGRAPH_START] || valid_symbols[ORDERED_LIST_PARAGRAPH_START]) &&
-    scanner->paragraph_stack[paragraph_depth] < UINT8_MAX &&
-    scanner->paragraph_type_stack_size < PARAGRAPH_TYPE_STACK_CAPACITY &&
     lexer->get_column(lexer) == scanner->paragraph_end_column &&
     paragraph_type_stack_first_index + scanner->paragraph_skipped_index >= scanner->paragraph_type_stack_size
   ) {
     advance(lexer);
-    scanner->paragraph_stack[paragraph_depth]++;
     mark_end(scanner, lexer);
 
     if (lexer->lookahead == '*' && valid_symbols[UNORDERED_LIST_PARAGRAPH_START]) {
@@ -1685,15 +1691,14 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         advance(lexer);
       }
 
-      if (!push_paragraph_type(scanner, PARAGRAPH_TYPE_UNORDERED_LIST_PARAGRAPH)) {
-        scanner->paragraph_stack[paragraph_depth]--;
-        return false;
+      if (push_paragraph(scanner, PARAGRAPH_TYPE_UNORDERED_LIST_PARAGRAPH)) {
+        scanner->paragraph_skipped_index++;
+        scanner->paragraph_end_column = lexer->get_column(lexer);
+        lexer->result_symbol = UNORDERED_LIST_PARAGRAPH_START;
+        return true;
       }
 
-      scanner->paragraph_skipped_index++;
-      scanner->paragraph_end_column = lexer->get_column(lexer);
-      lexer->result_symbol = UNORDERED_LIST_PARAGRAPH_START;
-      return true;
+      return false;
     }
 
     if (lexer->lookahead == '1' || lexer->lookahead == 'a' || lexer->lookahead == 'A' || lexer->lookahead == 'i' || lexer->lookahead == 'I') {
@@ -1715,34 +1720,27 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           advance(lexer);
         }
 
-        if (!push_paragraph_type(scanner, PARAGRAPH_TYPE_ORDERED_LIST_PARAGRAPH)) {
-          scanner->paragraph_stack[paragraph_depth]--;
-          return false;
+        if (push_paragraph(scanner, PARAGRAPH_TYPE_ORDERED_LIST_PARAGRAPH)) {
+          scanner->paragraph_skipped_index++;
+          scanner->paragraph_end_column = lexer->get_column(lexer);
+          lexer->result_symbol = ORDERED_LIST_PARAGRAPH_START;
+          return true;
         }
 
+        return false;
+      }
+
+      if (push_paragraph(scanner, PARAGRAPH_TYPE_PARAGRAPH)) {
         scanner->paragraph_skipped_index++;
-        scanner->paragraph_end_column = lexer->get_column(lexer);
-        lexer->result_symbol = ORDERED_LIST_PARAGRAPH_START;
+        scanner->paragraph_end_column = lexer->get_column(lexer) - 1; // 1|a|A|i|I
+        lexer->result_symbol = PARAGRAPH_START;
         return true;
       }
 
-      if (!push_paragraph_type(scanner, PARAGRAPH_TYPE_PARAGRAPH)) {
-        scanner->paragraph_stack[paragraph_depth]--;
-        return false;
-      }
-
-      scanner->paragraph_skipped_index++;
-      scanner->paragraph_end_column = lexer->get_column(lexer) - 1; // 1|a|A|i|I
-      lexer->result_symbol = PARAGRAPH_START;
-      return true;
+      return false;
     }
 
-    if (valid_symbols[PARAGRAPH_START]) {
-      if (!push_paragraph_type(scanner, PARAGRAPH_TYPE_PARAGRAPH)) {
-        scanner->paragraph_stack[paragraph_depth]--;
-        return false;
-      }
-
+    if (valid_symbols[PARAGRAPH_START] && push_paragraph(scanner, PARAGRAPH_TYPE_PARAGRAPH)) {
       scanner->paragraph_skipped_index++;
       scanner->paragraph_end_column = lexer->get_column(lexer);
       lexer->result_symbol = PARAGRAPH_START;
@@ -1756,24 +1754,20 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     scanner->simulate == FLAG_NONE &&
     lexer->lookahead == '>' &&
     valid_symbols[BLOCKQUOTE_PARAGRAPH_START] &&
-    scanner->paragraph_stack[paragraph_depth] < UINT8_MAX &&
-    scanner->paragraph_type_stack_size < PARAGRAPH_TYPE_STACK_CAPACITY &&
     lexer->get_column(lexer) == scanner->paragraph_end_column &&
     paragraph_type_stack_first_index + scanner->paragraph_skipped_index >= scanner->paragraph_type_stack_size
   ) {
     advance(lexer);
-    scanner->paragraph_stack[paragraph_depth]++;
     mark_end(scanner, lexer);
 
-    if (!push_paragraph_type(scanner, PARAGRAPH_TYPE_BLOCKQUOTE_PARAGRAPH)) {
-      scanner->paragraph_stack[paragraph_depth]--;
-      return false;
+    if (push_paragraph(scanner, PARAGRAPH_TYPE_BLOCKQUOTE_PARAGRAPH)) {
+      scanner->paragraph_skipped_index++;
+      scanner->paragraph_end_column = lexer->get_column(lexer);
+      lexer->result_symbol = BLOCKQUOTE_PARAGRAPH_START;
+      return true;
     }
 
-    scanner->paragraph_skipped_index++;
-    scanner->paragraph_end_column = lexer->get_column(lexer);
-    lexer->result_symbol = BLOCKQUOTE_PARAGRAPH_START;
-    return true;
+    return false;
   }
 
   if (lexer->lookahead == ' ' && valid_symbols[SPACE]) {
