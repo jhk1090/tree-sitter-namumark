@@ -130,7 +130,8 @@ enum TokenType {
   SOFT_LINE_PREFIX,
   SOFT_LINE_ENDING,
   LINE_ENDING,
-  TOKEN_EOF
+  TOKEN_EOF,
+  NONE,
 };
 
 enum BlockType {
@@ -1419,27 +1420,30 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   }
 
   if (scanner->simulate == FLAG_NONE && lexer->lookahead == '-' && lexer->get_column(lexer) == scanner->paragraph_end_column && scanner->is_horizontal_line_valid) {
+    mark_end(scanner, lexer);
+
     size_t size = 0;
     while (lexer->lookahead == '-') {
       advance(lexer);
       size++;
     }
 
-    mark_end(scanner, lexer);
-
     if (lexer->lookahead == '\r' || lexer->lookahead == '\n' || lexer->eof(lexer)) {
       if (size >= 4 && size < 10 && valid_symbols[HORIZONTAL_LINE]) {
+        mark_end(scanner, lexer);
         lexer->result_symbol = HORIZONTAL_LINE;
         return true;
       }
       if (size >= 10 && valid_symbols[HORIZONTAL_LINE_IMPLICIT]) {
+        mark_end(scanner, lexer);
         lexer->result_symbol = HORIZONTAL_LINE_IMPLICIT;
         return true;
       }
     }
 
     scanner->is_horizontal_line_valid = false;
-    return false;
+    lexer->result_symbol = NONE;
+    return true;
   }
   
   // strike 처리

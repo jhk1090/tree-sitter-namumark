@@ -138,6 +138,7 @@ module.exports = grammar({
     $._soft_line_ending,
     $._line_ending,
     $._eof,
+    $._none,
   ],
 
   rules: {
@@ -238,6 +239,7 @@ module.exports = grammar({
       $.footnote,
       $.horizontal_line,
       $.horizontal_line_implicit,
+      $._none,
       $.table_row
     ),
     _node_table: $ => choice(
@@ -261,6 +263,7 @@ module.exports = grammar({
       $.footnote,
       $.horizontal_line,
       $.horizontal_line_implicit,
+      $._none,
     ),
     _node_inline: $ => choice(
       $._block_inline,
