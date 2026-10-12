@@ -179,13 +179,16 @@ module.exports = grammar({
       $.table_argument_start, 
       field('name', choice(
         $.table_argument_required_value_name, 
-        $.table_argument_no_value_name
+        $.table_argument_no_value_name,
+        $.table_argument_name
+        
       )),
       optional(seq(token.immediate("="), optional(field('value', $.table_argument_value)))), 
       choice($.table_argument_end, $.table_argument_implicit_end)
     ),
     table_argument_required_value_name: $ => choice(...required_value_table_arguments),
     table_argument_no_value_name: $ => choice(...no_value_table_arguments),
+    table_argument_name: $ => token.immediate(/[ a-zA-Z]+/),
     table_argument_value: $ => repeat1(
       choice(
         /[^\]\}>\r\n\\]+/,

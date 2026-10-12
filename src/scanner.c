@@ -1336,39 +1336,25 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       return false;
     }
 
-    char buf[32] = {0};
-    size_t len = 0;
-
-    while (iswalnum(lexer->lookahead) || lexer->lookahead == ' ') {
-      if (len < 31) {
-        buf[len++] = (char)lexer->lookahead;
-      }
-      advance(lexer);
-    }
-    buf[len] = '\0';
-
-    if (len == 0) return false;
-
-    static const char *const ALLOWED_TABLE_ARGUMENT_NAME[] = {
-      "tablealign", "tablewidth", "tablecolor", "tablebgcolor", "tablebordercolor", "table align", "table width", "table color", "table bgcolor", "table bordercolor", "bgcolor", "colbgcolor", "rowbgcolor",
-      "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "width", "height",
-      "thead", "sortable", "keepall", "rowkeepall", "colkeepall", "nopad"
-    };
-    static const size_t COUNT = sizeof(ALLOWED_TABLE_ARGUMENT_NAME) / sizeof(ALLOWED_TABLE_ARGUMENT_NAME[0]);
-
     bool is_valid = false;
-    for (size_t i = 0; i < COUNT; i++) {
-      if (strcmp(buf, ALLOWED_TABLE_ARGUMENT_NAME[i]) == 0) {
-        is_valid = true;
-        break;
+    bool is_zero_length = true;
+    while (lexer->lookahead != '\n' && lexer->lookahead != '\r' && !lexer->eof(lexer)) {
+      if (lexer->lookahead == ' ' || ('a' <= lexer->lookahead && lexer->lookahead <= 'z') || ('A' <= lexer->lookahead && lexer->lookahead <= 'Z')) {
+        is_zero_length = false;
+        advance(lexer);
+        continue;
       }
+
+      if (lexer->lookahead == '>' || lexer->lookahead == '=') {
+        is_valid = true;
+      }
+
+      break;
     }
 
-    if (is_valid) {
-      if ((lexer->lookahead == '>' || lexer->lookahead == '=') && valid_symbols[TABLE_ARGUMENT_START]) {
-        lexer->result_symbol = TABLE_ARGUMENT_START;
-        return true;
-      }
+    if (is_valid && !is_zero_length && valid_symbols[TABLE_ARGUMENT_START]) {
+      lexer->result_symbol = TABLE_ARGUMENT_START;
+      return true;
     }
 
     return false;
