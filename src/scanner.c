@@ -187,22 +187,6 @@ enum {
 
 // --- Helper 함수들 ---
 
-static inline void set_table_stack(Scanner* s) {
-  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
-    s->table_stack[s->block_depth / 8] |= (uint8_t)(1u << (s->block_depth % 8));
-}
-
-static inline void clear_table_stack(Scanner* s) {
-  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
-    s->table_stack[s->block_depth / 8] &= (uint8_t)~(1u << (s->block_depth % 8));
-}
-
-static inline bool get_table_stack(const Scanner* s) {
-  return s->block_depth <= MAX_BLOCK_DEPTH &&
-    s->block_depth / 8 < sizeof s->table_stack &&
-    (s->table_stack[s->block_depth / 8] & (1u << (s->block_depth % 8))) != 0;
-}
-
 static bool is_valid_paragraph_type_stack(const uint8_t *stack, uint16_t count) {
   if (count > PARAGRAPH_TYPE_STACK_CAPACITY) return false;
 
@@ -222,6 +206,31 @@ static bool is_valid_paragraph_state(const uint8_t *paragraph_stack, uint32_t pa
     if (total > paragraph_type_stack_size) return false;
   }
   return total == paragraph_type_stack_size;
+}
+
+static inline bool is_valid_cached_heading_token(uint8_t token) {
+  return token == NO_HEADING_TOKEN || token == NO_CACHED ||
+    (token >= HEADING1_START && token <= HIDDEN_HEADING6_START);
+}
+
+static inline bool is_valid_block_type(uint8_t type) {
+  return type > BLOCK_TYPE_NONE && type <= BLOCK_TYPE_FALLBACK;
+}
+
+static inline void set_table_stack(Scanner* s) {
+  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
+    s->table_stack[s->block_depth / 8] |= (uint8_t)(1u << (s->block_depth % 8));
+}
+
+static inline void clear_table_stack(Scanner* s) {
+  if (s->block_depth <= MAX_BLOCK_DEPTH && s->block_depth / 8 < sizeof s->table_stack)
+    s->table_stack[s->block_depth / 8] &= (uint8_t)~(1u << (s->block_depth % 8));
+}
+
+static inline bool get_table_stack(const Scanner* s) {
+  return s->block_depth <= MAX_BLOCK_DEPTH &&
+    s->block_depth / 8 < sizeof s->table_stack &&
+    (s->table_stack[s->block_depth / 8] & (1u << (s->block_depth % 8))) != 0;
 }
 
 static bool push_paragraph(Scanner* scanner, uint8_t type) {
@@ -266,62 +275,41 @@ static uint8_t get_top_paragraph_type(Scanner *scanner) {
   return get_paragraph_type(scanner, scanner->paragraph_type_stack_size - 1);
 }
 
-static inline bool get_format_index(const Scanner *scanner, uint32_t *index) {
+static inline bool get_format_depth(const Scanner *scanner, uint32_t *depth) {
   if (scanner->block_depth >= FORMAT_STACK_SIZE 
     || scanner->link_depth >= FORMAT_STACK_SIZE - scanner->block_depth 
     || scanner->footnote_depth >= FORMAT_STACK_SIZE - scanner->block_depth - scanner->link_depth) {
     return false;
   }
-  *index = scanner->block_depth + scanner->link_depth + scanner->footnote_depth;
+  *depth = scanner->block_depth + scanner->link_depth + scanner->footnote_depth;
   return true;
 }
 
 static inline bool can_increment_format_depth(const Scanner *scanner) {
-  uint32_t index;
-  return get_format_index(scanner, &index) && index < FORMAT_STACK_SIZE - 1;
+  uint32_t depth;
+  return get_format_depth(scanner, &depth) && depth < FORMAT_STACK_SIZE - 1;
 }
 
-static inline bool is_valid_cached_heading_token(uint8_t token) {
-  return token == NO_HEADING_TOKEN || token == NO_CACHED ||
-    (token >= HEADING1_START && token <= HIDDEN_HEADING6_START);
+static inline void set_format(Scanner *scanner, uint8_t flag) {
+  uint32_t depth;
+  if (get_format_depth(scanner, &depth)) scanner->format_stack[depth] |= flag;
 }
 
-static inline bool is_valid_block_type(uint8_t type) {
-  return type > BLOCK_TYPE_NONE && type <= BLOCK_TYPE_FALLBACK;
-}
-
-static inline void set_style(Scanner *scanner, uint32_t depth, uint8_t flag) {
-    scanner->format_stack[depth] |= flag;
-}
-
-static inline void set_current_style(Scanner *scanner, uint8_t flag) {
-  uint32_t index;
-  if (get_format_index(scanner, &index)) set_style(scanner, index, flag);
-}
-
-static inline void reset_current_format_scope(Scanner *scanner) {
-  uint32_t index;
-  if (get_format_index(scanner, &index)) {
-    scanner->format_stack[index] = 0;
+static inline void reset_format(Scanner *scanner) {
+  uint32_t depth;
+  if (get_format_depth(scanner, &depth)) {
+    scanner->format_stack[depth] = 0;
   }
 }
 
-static inline void clear_style(Scanner *scanner, uint32_t depth, uint8_t flag) {
-    scanner->format_stack[depth] &= ~flag;
+static inline void remove_format(Scanner *scanner, uint8_t flag) {
+  uint32_t depth;
+  if (get_format_depth(scanner, &depth)) scanner->format_stack[depth] &= ~flag;
 }
 
-static inline void clear_current_style(Scanner *scanner, uint8_t flag) {
-  uint32_t index;
-  if (get_format_index(scanner, &index)) clear_style(scanner, index, flag);
-}
-
-static inline bool has_style(const Scanner *scanner, uint32_t depth, uint8_t flag) {
-    return (scanner->format_stack[depth] & flag) != 0;
-}
-
-static inline bool has_current_style(const Scanner *scanner, uint8_t flag) {
-  uint32_t index;
-  return get_format_index(scanner, &index) && has_style(scanner, index, flag);
+static inline bool has_format(const Scanner *scanner, uint8_t flag) {
+  uint32_t depth;
+  return get_format_depth(scanner, &depth) && (scanner->format_stack[depth] & flag) != 0;
 }
 
 static void mark_end(Scanner *s, TSLexer *lexer) {
@@ -423,7 +411,7 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   if (valid_symbols[TOKEN_TYPE]) {
     if (scanner->block_depth < MAX_BLOCK_DEPTH && can_increment_format_depth(scanner)) {
       scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE;
-      reset_current_format_scope(scanner);
+      reset_format(scanner);
     } else {
       return false;
     }
@@ -434,7 +422,7 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   if (BLOCK_TYPE != BLOCK_TYPE_FALLBACK && valid_symbols[TOKEN_TYPE + 1]) {
     if (scanner->block_depth < MAX_BLOCK_DEPTH && can_increment_format_depth(scanner)) {
       scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE_FALLBACK;
-      reset_current_format_scope(scanner);
+      reset_format(scanner);
     } else {
       return false;
     }
@@ -829,8 +817,8 @@ static bool register_table_argument_implicit_end(TSLexer *lexer, Scanner *scanne
 
 
 static bool register_format_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t FLAG, uint8_t TOKEN_TYPE) {
-  if (has_current_style(scanner, FLAG) && valid_symbols[TOKEN_TYPE]) {
-    clear_current_style(scanner, FLAG);
+  if (has_format(scanner, FLAG) && valid_symbols[TOKEN_TYPE]) {
+    remove_format(scanner, FLAG);
     lexer->result_symbol = TOKEN_TYPE;
     return true;
   }
@@ -890,10 +878,10 @@ static bool register_paragraph_end(TSLexer *lexer, Scanner *scanner, const bool 
 static bool consume_format(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t FLAG, uint8_t START_TOKEN_TYPE) {
   if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
         
-  bool is_formatted = has_current_style(scanner, FLAG);
+  bool is_formatted = has_format(scanner, FLAG);
   if (!is_formatted && valid_symbols[START_TOKEN_TYPE]) {
     mark_end(scanner, lexer);
-    set_current_style(scanner, FLAG);
+    set_format(scanner, FLAG);
     lexer->result_symbol = START_TOKEN_TYPE;
     return true;
   }
@@ -902,7 +890,7 @@ static bool consume_format(TSLexer *lexer, Scanner *scanner, const bool *valid_s
   if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG)) return true;
   if (is_formatted && valid_symbols[END_TOKEN_TYPE]) {
     mark_end(scanner, lexer);
-    clear_current_style(scanner, FLAG);
+    remove_format(scanner, FLAG);
     lexer->result_symbol = END_TOKEN_TYPE;
     return true;
   }
@@ -926,7 +914,7 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   uint32_t format_count;
   if (scanner->block_depth > MAX_BLOCK_DEPTH || scanner->link_depth > UINT8_MAX ||
       scanner->footnote_depth > UINT8_MAX ||
-      !get_format_index(scanner, &format_count)) return 0;
+      !get_format_depth(scanner, &format_count)) return 0;
   format_count++;
 
   uint32_t table_count = scanner->block_depth / 8 + 1;
@@ -1115,7 +1103,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   uint8_t top_type = scanner->block_depth > 0 ? scanner->block_stack[scanner->block_depth - 1] : BLOCK_TYPE_NONE;
   bool is_formatted = false;
   uint32_t format_depth;
-  if (get_format_index(scanner, &format_depth)) {
+  if (get_format_depth(scanner, &format_depth)) {
     is_formatted = scanner->format_stack[format_depth] > 0;
   }
   uint16_t paragraph_depth = scanner->block_depth + get_table_stack(scanner);
@@ -1940,7 +1928,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           can_increment_format_depth(scanner)) {
         mark_end(scanner, lexer);
         scanner->link_depth++;
-        reset_current_format_scope(scanner);
+        reset_format(scanner);
 
         lexer->result_symbol = consume_string(lexer, "파일:") ? FILE_LINK_START : LINK_START;
         return true;
@@ -1961,7 +1949,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (valid_symbols[FOOTNOTE_START] && can_increment_format_depth(scanner)) {
         mark_end(scanner, lexer);
         scanner->footnote_depth++;
-        reset_current_format_scope(scanner);
+        reset_format(scanner);
 
         lexer->result_symbol = FOOTNOTE_START;
         return true;
