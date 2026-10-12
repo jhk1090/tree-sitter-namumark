@@ -1621,7 +1621,8 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     scanner->simulate == FLAG_NONE &&
     (lexer->lookahead == ' ' || lexer->lookahead == '>') &&
     lexer->get_column(lexer) == scanner->indent_end_column &&
-    indent_type_stack_first_index + scanner->indent_skipped_index < scanner->indent_type_stack_size
+    indent_type_stack_first_index + scanner->indent_skipped_index < scanner->indent_type_stack_size &&
+    valid_symbols[PARAGRAPH_SKIP]
   ) {
     uint8_t type = get_indent_type(scanner, indent_type_stack_first_index + scanner->indent_skipped_index);
     
