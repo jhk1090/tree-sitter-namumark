@@ -116,6 +116,9 @@ module.exports = grammar({
     $.table_row_end,
     $.table_row_implicit_end,
     $.table_cell_split,
+    $.table_caption_start,
+    $.table_caption_end,
+    $.table_caption_implicit_end,
     $.table_argument_start,
     $.table_argument_end,
     $.table_argument_implicit_end,
@@ -168,8 +171,10 @@ module.exports = grammar({
     _paragraph: $ => choice($.paragraph, $.unordered_list_paragraph, $.ordered_list_paragraph, $.blockquote_paragraph),
 
     table_row: $ => prec.right(seq(repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end))),
-    table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
+    table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split, $.table_caption), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
     table_cell_content: $ => prec.right(repeat1(choice($._node_table, $._paragraph))),
+    table_caption: $ => prec.right(seq($.table_caption_start, optional($.table_caption_content), choice($.table_caption_end, $.table_caption_implicit_end))),
+    table_caption_content: $ => prec.right(repeat1($._node_inline)),
     table_argument: $ => seq(
       $.table_argument_start, 
       field('name', choice(
@@ -751,7 +756,7 @@ module.exports = grammar({
       $._greater_than_sign,
     )),
     text_inline: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,]+/,
+      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
       prec(-10, token('#')),
       prec(-10, token('=')),
       prec(-10, token('{')),
@@ -766,6 +771,7 @@ module.exports = grammar({
       prec(-10, token('_')),
       prec(-10, token('^')),
       prec(-10, token(',')),
+      $._pipe,
     )),
   }
 });

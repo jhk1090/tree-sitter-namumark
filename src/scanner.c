@@ -109,6 +109,9 @@ enum TokenType {
   TABLE_ROW_END,
   TABLE_ROW_IMPLICIT_END,
   TABLE_CELL_SPLIT,
+  TABLE_CAPTION_START,
+  TABLE_CAPTION_END,
+  TABLE_CAPTION_IMPLICIT_END,
   TABLE_ARGUMENT_START,
   TABLE_ARGUMENT_END,
   TABLE_ARGUMENT_IMPLICIT_END,
@@ -164,6 +167,7 @@ typedef struct {
   uint32_t link_depth;
   uint32_t footnote_depth;
   uint32_t block_depth;
+  uint32_t table_end_column;
   uint16_t indent_type_stack_size;
   uint16_t indent_skipped_index;
   uint32_t indent_end_column;
@@ -176,7 +180,7 @@ typedef struct {
 } Scanner;
 
 enum {
-  SERIALIZED_HEADER_SIZE = 20,
+  SERIALIZED_HEADER_SIZE = 24,
   FORMAT_STACK_SIZE = 256,
   MAX_BLOCK_DEPTH = UINT8_MAX
 };
@@ -793,6 +797,14 @@ static bool register_table_row_implicit_end(TSLexer *lexer, Scanner *scanner, co
   return false;
 }
 
+static bool register_table_caption_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (valid_symbols[TABLE_CAPTION_IMPLICIT_END]) {
+    lexer->result_symbol = TABLE_CAPTION_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
+
 static bool register_table_argument_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   if (valid_symbols[TABLE_ARGUMENT_IMPLICIT_END]) {
     lexer->result_symbol = TABLE_ARGUMENT_IMPLICIT_END;
@@ -934,6 +946,10 @@ unsigned tree_sitter_namumark_external_scanner_serialize(void *payload, char *bu
   buffer[size++] = (char)scanner->in_macro;
   buffer[size++] = (char)scanner->in_argument;
   buffer[size++] = (char)scanner->is_horizontal_line_valid;
+  buffer[size++] = (char)(scanner->table_end_column & 0xff);
+  buffer[size++] = (char)((scanner->table_end_column >> 8) & 0xff);
+  buffer[size++] = (char)((scanner->table_end_column >> 16) & 0xff);
+  buffer[size++] = (char)((scanner->table_end_column >> 24) & 0xff);
   buffer[size++] = (char)(scanner->indent_type_stack_size & 0xff);
   buffer[size++] = (char)(scanner->indent_type_stack_size >> 8);
   buffer[size++] = (char)(scanner->indent_skipped_index & 0xff);
@@ -981,6 +997,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->in_macro = false;
   scanner->in_argument = false;
   scanner->is_horizontal_line_valid = true;
+  scanner->table_end_column = UINT32_MAX;
   scanner->indent_type_stack_size = 0;
   scanner->indent_skipped_index = 0;
   scanner->indent_end_column = 0;
@@ -1001,6 +1018,10 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   uint8_t in_macro = data[size++];
   uint8_t in_argument = data[size++];
   uint8_t is_horizontal_line_valid = data[size++];
+  uint32_t table_end_column = (uint8_t)data[size++];
+  table_end_column |= (uint32_t)(uint8_t)data[size++] << 8;
+  table_end_column |= (uint32_t)(uint8_t)data[size++] << 16;
+  table_end_column |= (uint32_t)(uint8_t)data[size++] << 24;
   uint16_t indent_type_stack_size = data[size++];
   indent_type_stack_size |= (uint16_t)data[size++] << 8;
   uint16_t indent_skipped_index = data[size++];
@@ -1023,7 +1044,6 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
       in_macro > 1 || in_argument > 1 || is_horizontal_line_valid > 1 ||
       indent_type_stack_size > INDENT_TYPE_STACK_CAPACITY ||
       indent_skipped_index > INDENT_TYPE_STACK_CAPACITY ||
-      indent_end_column > UINT32_MAX ||
       simulate > FLAG_SIMULATE_HEADING ||
       saved_block_depth > MAX_BLOCK_DEPTH ||
       saved_block_depth + saved_link_depth + saved_footnote_depth > UINT8_MAX) return;
@@ -1065,6 +1085,7 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
   scanner->in_macro = in_macro != 0;
   scanner->in_argument = in_argument != 0;
   scanner->is_horizontal_line_valid = is_horizontal_line_valid != 0;
+  scanner->table_end_column = table_end_column;
   scanner->indent_type_stack_size = indent_type_stack_size;
   scanner->indent_skipped_index = indent_skipped_index;
   scanner->indent_end_column = indent_end_column;
@@ -1079,6 +1100,11 @@ void tree_sitter_namumark_external_scanner_deserialize(void *payload, const char
 static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
   uint8_t top_type = scanner->block_depth > 0 ? scanner->block_stack[scanner->block_depth - 1] : BLOCK_TYPE_NONE;
+  bool is_formatted = false;
+  uint32_t format_depth;
+  if (get_format_index(scanner, &format_depth)) {
+    is_formatted = scanner->format_stack[format_depth] > 0;
+  }
   uint16_t indent_depth = scanner->block_depth + get_table_stack(scanner);
   uint16_t indent_type_stack_first_index = scanner->indent_type_stack_size - scanner->indent_stack[indent_depth];
 
@@ -1096,10 +1122,21 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
   // 문서 끝에 도달하면 모두 강제 종료
   if (lexer->eof(lexer)) {
+    if (!is_formatted && get_table_stack(scanner) && lexer->get_column(lexer) == scanner->table_end_column) {
+      if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
+
+      if (valid_symbols[TABLE_ROW_END]) {
+        clear_table_stack(scanner);
+        lexer->result_symbol = TABLE_ROW_END;
+        return true;
+      }
+    }
+
     if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_table_caption_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
@@ -1127,9 +1164,20 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   if (scanner->simulate == FLAG_NONE && lexer->lookahead == '}' && scanner->block_depth > 0) {
     mark_end(scanner, lexer);
     if (consume_string(lexer, "}}}")) {
+      if (!is_formatted && get_table_stack(scanner) && lexer->get_column(lexer) == scanner->table_end_column + 3) {
+        if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
+
+        if (valid_symbols[TABLE_ROW_END]) {
+          clear_table_stack(scanner);
+          lexer->result_symbol = TABLE_ROW_END;
+          return true;
+        }
+      }
+
       if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_table_caption_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
@@ -1178,14 +1226,14 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     }
 
     advance(lexer);
+    if (!is_formatted && get_table_stack(scanner) && valid_symbols[TABLE_CAPTION_END]) {
+      mark_end(scanner, lexer);
+      lexer->result_symbol = TABLE_CAPTION_END;
+      return true;
+    }
+
     if (lexer->lookahead == '|') {
       advance(lexer);
-
-      bool is_formatted = false;
-      uint32_t format_depth;
-      if (get_format_index(scanner, &format_depth)) {
-        is_formatted = scanner->format_stack[format_depth] > 0;
-      }
       
       // table_row_start 처리
       if (!is_formatted && !get_table_stack(scanner) && lexer->get_column(lexer) == scanner->indent_end_column + 2 && valid_symbols[TABLE_ROW_START]) {
@@ -1195,34 +1243,40 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         return true;
       }
 
-      // table_row_end 처리
-      if (
-        !is_formatted && 
-        get_table_stack(scanner) &&
-        (
-          (lexer->lookahead == '\r' || lexer->lookahead == '\n' || lexer->eof(lexer)) ||
-          (lexer->lookahead == '}' && scanner->block_depth > 0 && consume_string(lexer, "}}}"))
-        )
-      ) {
-        if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
-
-        if (valid_symbols[TABLE_ROW_END]) {
-          mark_end(scanner, lexer);
-          clear_table_stack(scanner);
-          lexer->result_symbol = TABLE_ROW_END;
-          return true;
-        }
-        return false;
-      }
-
       // table_cell_split 처리
       if (!is_formatted && get_table_stack(scanner) && valid_symbols[TABLE_CELL_SPLIT]) {
         if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
 
         mark_end(scanner, lexer);
+        scanner->table_end_column = lexer->get_column(lexer);
         lexer->result_symbol = TABLE_CELL_SPLIT;
         return true;    
       }
+    } 
+    else if (!is_formatted && !get_table_stack(scanner) && lexer->get_column(lexer) == scanner->indent_end_column + 1 && valid_symbols[TABLE_CAPTION_START]) {
+      mark_end(scanner, lexer);
+
+      bool is_valid_table_caption_end = false;
+      while (lexer->lookahead != '\n' && lexer->lookahead != '\r' && !lexer->eof(lexer)) {
+        if (lexer->lookahead == '|') {
+          is_valid_table_caption_end = true;
+          break;
+        }
+        advance(lexer);
+      }
+
+      if (is_valid_table_caption_end)  {
+        set_table_stack(scanner);
+        lexer->result_symbol = TABLE_CAPTION_START;
+        return true;
+      }
+
+      if (valid_symbols[PIPE]) {
+        lexer->result_symbol = PIPE;
+        return true;
+      }
+
+      return false;
     }
 
     // pipe는 1개거나 2개일 수 있음
@@ -1448,6 +1502,16 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
   // newline 시 허용하지 않는 문법 강제 종료 처리
   if (scanner->simulate == FLAG_NONE && (lexer->lookahead == '\n' || lexer->lookahead == '\r')) {
+    if (!is_formatted && get_table_stack(scanner) && lexer->get_column(lexer) == scanner->table_end_column) {
+      if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
+
+      if (valid_symbols[TABLE_ROW_END]) {
+        clear_table_stack(scanner);
+        lexer->result_symbol = TABLE_ROW_END;
+        return true;
+      }
+    }
+
     mark_end(scanner, lexer);
     if (lexer->lookahead == '\r') {
       advance(lexer);
@@ -1455,6 +1519,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     advance(lexer);
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
+    if (register_table_caption_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_table_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (close_format_implicit_ends(lexer, scanner, valid_symbols, FLAG_NONE)) return true;
 
@@ -1463,6 +1528,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
         scanner->cached_heading_token = NO_CACHED;
       }
       scanner->is_horizontal_line_valid = true;
+      scanner->table_end_column = UINT32_MAX;
       scanner->indent_skipped_index = 0;
       scanner->indent_end_column = 0;
 
@@ -1470,7 +1536,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       lexer->result_symbol = SOFT_LINE_ENDING;
       return true;
     }
-    
+
     if (lexer->get_column(lexer) == 0) {
       if (lexer->lookahead != '=') {
         scanner->cached_heading_token = NO_HEADING_TOKEN;
