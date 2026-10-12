@@ -383,13 +383,13 @@ module.exports = grammar({
       prec(-10, token(" ")),
     )),
 
-    // 5가지 속성 중 하나와 매칭
     _wiki_attribute: ($) => choice(
       field("style", $.wiki_style_attr),
       field("dark_style", $.wiki_dark_style_attr),
       field("tag", $.wiki_tag_attr),
       field("class", $.wiki_class_attr),
-      field("lang", $.wiki_lang_attr)
+      field("lang", $.wiki_lang_attr),
+      field("onclick", $.wiki_onclick_attr),
     ),
 
     // 끝나는 따옴표가 있어야지만 유효
@@ -406,6 +406,7 @@ module.exports = grammar({
     wiki_tag_attr: ($) => prec.right(seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
     wiki_class_attr: ($) => prec.right(seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
     wiki_lang_attr: ($) => prec.right(seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
+    wiki_onclick_attr: ($) => prec.right(seq('onclick="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
 
     block_header: $ => repeat1(
       choice(
