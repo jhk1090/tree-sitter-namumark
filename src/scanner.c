@@ -7,15 +7,22 @@
 #include <stdio.h>
 #include "unicode_ranges.h"
 
-#define NO_HEADING_TOKEN 0
-
+// heading_status로 유효한 값
 #define STATUS_NO_HEADING_SECTION 0
 #define STATUS_MATCH_HEADING 1
 #define STATUS_HEADING_SECTION 2
 
+// cached_heading_token로 유효한 값
+#define NO_HEADING_TOKEN 0
 #define NO_CACHED 255
 
+// flag류 공통
 #define FLAG_NONE        0
+
+// simulate로 횬효한 값
+#define FLAG_SIMULATE_HEADING   (1 << 0) // 0x01 (0000 0001) 
+
+// format_stack[n]로 유효한 값
 #define FLAG_BOLD        (1 << 0) // 0x01 (0000 0001)
 #define FLAG_ITALIC      (1 << 1) // 0x02 (0000 0010)
 #define FLAG_STRIKE      (1 << 2) // 0x04 (0000 0100)
@@ -24,13 +31,14 @@
 #define FLAG_SUBSCRIPT   (1 << 5) // 0x20 (0010 0000)
 #define FLAG_UNDERLINE   (1 << 6) // 0x40 (0100 0000)
 
-#define FLAG_SIMULATE_HEADING   (1 << 0) // 0x01 (0000 0001) 
+// 가용 한계 명시
+#define SERIALIZED_HEADER_SIZE 24
+#define FORMAT_STACK_SIZE 256
+#define MAX_BLOCK_DEPTH UINT8_MAX
 
 #define MAX_PARAGRAPH_COUNT 257
 #define PARAGRAPH_TYPE_STACK_SIZE ((MAX_PARAGRAPH_COUNT + 3) / 4)
 #define PARAGRAPH_TYPE_STACK_CAPACITY (PARAGRAPH_TYPE_STACK_SIZE * 4)
-
-#define PARAGRAPH_TYPE_FALLBACK 255
 
 static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols);
 
@@ -134,6 +142,7 @@ enum TokenType {
   NONE,
 };
 
+// block_stack[n]의 값으로 유효한 값
 enum BlockType {
   BLOCK_TYPE_NONE,
   BLOCK_TYPE_NOWIKI,
@@ -149,26 +158,28 @@ enum BlockType {
   BLOCK_TYPE_FALLBACK
 };
 
+// paragraph_type_stack[n]의 값으로 유효한 값
 enum ParagraphType {
   PARAGRAPH_TYPE_PARAGRAPH,
   PARAGRAPH_TYPE_ORDERED_LIST_PARAGRAPH,
   PARAGRAPH_TYPE_UNORDERED_LIST_PARAGRAPH,
-  PARAGRAPH_TYPE_BLOCKQUOTE_PARAGRAPH
+  PARAGRAPH_TYPE_BLOCKQUOTE_PARAGRAPH,
+  PARAGRAPH_TYPE_FALLBACK = 255 // 실제 값으로 저장되지 않음. 오류 분기용
 };
 
 typedef struct {
-  bool in_macro;
-  bool in_argument;
-  bool is_horizontal_line_valid;
-  uint8_t heading_level;
-  uint8_t heading_status;
-  uint8_t heading_levels;
-  bool is_hidden_heading;
-  uint8_t cached_heading_token;
-  uint32_t link_depth;
-  uint32_t footnote_depth;
-  uint32_t block_depth;
-  uint32_t table_end_column;
+  bool in_macro; // 매크로 문법 내부
+  bool in_argument; // 매개변수 문법 내부
+  bool is_horizontal_line_valid; // 수평줄 문법이 들어오기 알맞은지 여부
+  uint8_t heading_level; // 현재 줄 문단 레벨
+  uint8_t heading_status; // 현재 줄 문단 매칭 상태
+  uint8_t heading_levels; // 문단 레벨별 활성화 기록 (bitmask)
+  bool is_hidden_heading; // 현재 줄 문단이 숨김 상태인지
+  uint8_t cached_heading_token; // 문단 매칭 결과 캐싱
+  uint32_t link_depth; // 링크 문법 깊이
+  uint32_t footnote_depth; // 주석 문법 깊이
+  uint32_t block_depth; // block류 문법 깊이
+  uint32_t table_end_column; // 테이블 문법 종료 가능 열
   uint16_t paragraph_type_stack_size;
   uint16_t paragraph_skipped_index;
   uint32_t paragraph_end_column;
@@ -179,12 +190,6 @@ typedef struct {
   uint8_t paragraph_stack[MAX_PARAGRAPH_COUNT]; // block_depth or block_depth + table과 연동
   uint8_t paragraph_type_stack[PARAGRAPH_TYPE_STACK_SIZE];
 } Scanner;
-
-enum {
-  SERIALIZED_HEADER_SIZE = 24,
-  FORMAT_STACK_SIZE = 256,
-  MAX_BLOCK_DEPTH = UINT8_MAX
-};
 
 // --- Helper 함수들 ---
 
@@ -270,10 +275,6 @@ static uint8_t get_paragraph_type(Scanner *scanner, uint16_t index) {
   uint8_t bit_offset = (index % 4) * 2;
 
   return (scanner->paragraph_type_stack[byte_index] >> bit_offset) & 0x03u;
-}
-
-static uint8_t get_top_paragraph_type(Scanner *scanner) {
-  return get_paragraph_type(scanner, scanner->paragraph_type_stack_size - 1);
 }
 
 static inline bool get_format_depth(const Scanner *scanner, uint32_t *depth) {
@@ -755,6 +756,14 @@ static bool consume_argument(TSLexer *lexer, Scanner *scanner) {
   return false;
 }
 
+static bool register_paragraph_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (valid_symbols[PARAGRAPH_END] && remove_top_paragraph(scanner)) {
+    lexer->result_symbol = PARAGRAPH_END;
+    return true;
+  }
+  return false;
+}
+
 static bool register_bracket_implicit_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   if (scanner->block_depth > 0 && valid_symbols[BRACKET_IMPLICIT_END]) {
     scanner->block_depth--;
@@ -786,6 +795,25 @@ static bool register_footnote_implicit_end(TSLexer *lexer, Scanner *scanner, con
   if (scanner->footnote_depth > 0 && valid_symbols[FOOTNOTE_IMPLICIT_END]) {
     scanner->footnote_depth--;
     lexer->result_symbol = FOOTNOTE_IMPLICIT_END;
+    return true;
+  }
+  return false;
+}
+
+static bool register_table_row_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint32_t offset) {
+  bool is_formatted = false;
+  uint32_t format_depth;
+  if (get_format_depth(scanner, &format_depth)) {
+    is_formatted = scanner->format_stack[format_depth] > 0;
+  }
+
+  if (is_formatted || !get_table_stack(scanner) || lexer->get_column(lexer) != scanner->table_end_column + offset) return false;
+
+  if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
+
+  if (valid_symbols[TABLE_ROW_END]) {
+    clear_table_stack(scanner);
+    lexer->result_symbol = TABLE_ROW_END;
     return true;
   }
   return false;
@@ -863,14 +891,6 @@ static bool register_argument_implicit_end(TSLexer *lexer, Scanner *scanner, con
   if (scanner->in_argument && valid_symbols[ARGUMENT_IMPLICIT_END]) {
     scanner->in_argument = false;
     lexer->result_symbol = ARGUMENT_IMPLICIT_END;
-    return true;
-  }
-  return false;
-}
-
-static bool register_paragraph_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
-  if (valid_symbols[PARAGRAPH_END] && remove_top_paragraph(scanner)) {
-    lexer->result_symbol = PARAGRAPH_END;
     return true;
   }
   return false;
@@ -1124,16 +1144,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
   // 문서 끝에 도달하면 모두 강제 종료
   if (lexer->eof(lexer)) {
-    if (!is_formatted && get_table_stack(scanner) && lexer->get_column(lexer) == scanner->table_end_column) {
-      if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
-
-      if (valid_symbols[TABLE_ROW_END]) {
-        clear_table_stack(scanner);
-        lexer->result_symbol = TABLE_ROW_END;
-        return true;
-      }
-    }
-
+    if (register_table_row_end(lexer, scanner, valid_symbols, 0)) return true;
     if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
@@ -1162,20 +1173,14 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     return true;
   }
 
-  // bracket_end 처리
+  // block류 문법 종료 처리 - bracket_end
+  // block류 문법은 공통적으로 }}} 문자열과 함께 종료됨.
   if (scanner->simulate == FLAG_NONE && lexer->lookahead == '}' && scanner->block_depth > 0) {
     mark_end(scanner, lexer);
     if (consume_string(lexer, "}}}")) {
-      if (!is_formatted && get_table_stack(scanner) && lexer->get_column(lexer) == scanner->table_end_column + 3) {
-        if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
+      if (register_table_row_end(lexer, scanner, valid_symbols, 3)) return true;
 
-        if (valid_symbols[TABLE_ROW_END]) {
-          clear_table_stack(scanner);
-          lexer->result_symbol = TABLE_ROW_END;
-          return true;
-        }
-      }
-
+      // block 내부의 모든 허용 문법에 대한 암묵적 종료 처리
       if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_footnote_implicit_end(lexer, scanner, valid_symbols)) return true;
@@ -1493,15 +1498,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
   // newline 시 허용하지 않는 문법 강제 종료 처리
   if (scanner->simulate == FLAG_NONE && (lexer->lookahead == '\n' || lexer->lookahead == '\r')) {
-    if (!is_formatted && get_table_stack(scanner) && lexer->get_column(lexer) == scanner->table_end_column) {
-      if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
-
-      if (valid_symbols[TABLE_ROW_END]) {
-        clear_table_stack(scanner);
-        lexer->result_symbol = TABLE_ROW_END;
-        return true;
-      }
-    }
+    if (register_table_row_end(lexer, scanner, valid_symbols, 0)) return true;
 
     mark_end(scanner, lexer);
     if (lexer->lookahead == '\r') {
