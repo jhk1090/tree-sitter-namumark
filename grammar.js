@@ -5,8 +5,6 @@ const required_arg_macros = ["anchor", "age", "dday", "youtube", "kakaotv", "vim
 const optional_arg_macros = ["pagecount", "목차", "tableofcontents"]
 const no_arg_macros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
 
-const file_link_properties = ["align", "bgcolor", "border-radius", "height", "object-fit", "rendering", "theme", "width"]
-
 const required_value_table_arguments = [ "tablealign", "tablewidth", "tablecolor", "tablebgcolor", "tablebordercolor", "table align", "table width", "table color", "table bgcolor", "table bordercolor", "bgcolor", "colbgcolor", "rowbgcolor", "color", "colcolor", "rowcolor", "tableclass", "class", "rowclass", "rowif", "tablealign", "width", "height" ]
 const no_value_table_arguments = ["thead", "sortable", "keepall", "rowkeepall", "colkeepall", "nopad"]
 
@@ -369,44 +367,11 @@ module.exports = grammar({
     wiki_block: $ => seq(
       $.wiki_block_start,
       "#!wiki",
-      optional($.wiki_block_header),
+      optional($.block_header),
       $._newline,
       optional($.block_content),
       $._block_end
     ),
-    wiki_block_header: ($) => repeat1(choice(
-      $._wiki_attribute,
-      prec(1, token(/[^\r\n@= ]+/)),
-      prec(1, $.argument),
-      prec(-10, token("@")),
-      prec(-10, token("=")),
-      prec(-10, token(" ")),
-    )),
-
-    _wiki_attribute: ($) => choice(
-      field("style", $.wiki_style_attr),
-      field("dark_style", $.wiki_dark_style_attr),
-      field("tag", $.wiki_tag_attr),
-      field("class", $.wiki_class_attr),
-      field("lang", $.wiki_lang_attr),
-      field("onclick", $.wiki_onclick_attr),
-    ),
-
-    // 끝나는 따옴표가 있어야지만 유효
-    wiki_attr_value: ($) => prec.right(repeat1(
-      choice(
-        token(prec(2, /[^\r\n"@=]+/)),
-        prec(-10, token("=")),
-        prec(1, $.argument),
-        prec(-10, token("@"))
-      )
-    )),
-    wiki_style_attr: ($) => prec.right(seq('style="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
-    wiki_dark_style_attr: ($) => prec.right(seq('dark-style="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
-    wiki_tag_attr: ($) => prec.right(seq('tag="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
-    wiki_class_attr: ($) => prec.right(seq('class="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
-    wiki_lang_attr: ($) => prec.right(seq('lang="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
-    wiki_onclick_attr: ($) => prec.right(seq('onclick="', optional(field("value", $.wiki_attr_value)), optional(field("end", token(prec(2, '"')))))),
 
     block_header: $ => repeat1(
       choice(
@@ -477,23 +442,9 @@ module.exports = grammar({
         $.macro_implicit_end
       )
     ),
-    
-    macro_content: $ => repeat1(
-      seq(
-        $.macro_argument,
-        optional(token(prec(2, ",")))
-      )
-    ),
-    macro_argument: $ => prec.right(
-      seq(
-        field("name", $.macro_argument_field),
-        optional(token(prec(2, "="))),
-        optional(field("value", $.macro_argument_field))
-      )
-    ),
-    macro_argument_field: $ => prec.right(repeat1(
+    macro_content: $ => prec.right(repeat1(
       choice(
-        /[^\=\r\n\)\]\\@\,]+/,
+        /[^\=\r\n\)\]\\@]+/,
         $.escape,
         $.argument,
         prec(1, $._newline),
@@ -549,7 +500,7 @@ module.exports = grammar({
     file_link: $ => seq(
       $.file_link_start,
       optional(field('link', $.file_link_link)),
-      optional(seq($.link_pipe, optional(field('attribute', repeat1(seq($.file_link_attribute, optional(token(prec(2, "&"))))))))),
+      optional(seq($.link_pipe, optional(field('attribute', $.file_link_attribute)))),
       choice(
         $.link_end,
         $.link_implicit_end
@@ -566,17 +517,9 @@ module.exports = grammar({
         prec(-10, token('@')),
       )
     ),
-    file_link_attribute: $ => prec.right(
-      seq(
-        field("name", choice(prec(1, $.file_link_allowed_attribute_name), $.file_link_attribute_field)),
-        optional(token(prec(2, "="))),
-        optional(field("value", $.file_link_attribute_field))
-      )
-    ),
-    file_link_allowed_attribute_name: $ => choice(...file_link_properties),
-    file_link_attribute_field: $ => prec.right(repeat1(
+    file_link_attribute: $ => prec.right(repeat1(
       choice(
-        /[^\]\|\}\=\r\n\\@\&]+/,
+        /[^\]\|\}\=\r\n\\@]+/,
         $.escape,
         $.argument,
         prec(-10, token(']')),
