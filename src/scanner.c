@@ -1838,7 +1838,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
     mark_end(scanner, lexer);
 
-    if (consume_string(lexer, heading_end_string)) {
+    if (consume_string(lexer, heading_end_string) && (lexer->lookahead == '\r' || lexer->lookahead == '\n' || lexer->eof(lexer))) {
       if (scanner->simulate == FLAG_NONE) {
         if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
         if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
