@@ -110,6 +110,7 @@ module.exports = grammar({
     $.footnote_start,
     $.footnote_end,
     $.footnote_implicit_end,
+    $.table_end,
     $.table_row_start,
     $.table_row_end,
     $.table_row_implicit_end,
@@ -169,6 +170,7 @@ module.exports = grammar({
 
     _paragraph: $ => choice($.paragraph, $.unordered_list_paragraph, $.ordered_list_paragraph, $.blockquote_paragraph),
 
+    table: $ => prec.right(seq(repeat1(prec(2, seq($.table_row, optional(seq($._newline, optional(repeat1($._paragraph_skip))))))), $.table_end)),
     table_row: $ => prec.right(seq(repeat1($.table_cell), choice($.table_row_end, $.table_row_implicit_end))),
     table_cell: $ => prec.right(seq(choice($.table_row_start, $.table_cell_split, $.table_caption), repeat(choice($.table_special_argument, $.table_argument)), optional($.table_cell_content))),
     table_cell_content: $ => prec.right(repeat1(choice($._node_table, $._paragraph))),
@@ -238,7 +240,7 @@ module.exports = grammar({
       $.horizontal_line,
       $.horizontal_line_implicit,
       $._none,
-      $.table_row
+      $.table
     ),
     _node_table: $ => choice(
       $.comment,

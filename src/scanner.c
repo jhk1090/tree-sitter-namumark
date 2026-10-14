@@ -113,6 +113,7 @@ enum TokenType {
   FOOTNOTE_START,
   FOOTNOTE_END,
   FOOTNOTE_IMPLICIT_END,
+  TABLE_END,
   TABLE_ROW_START,
   TABLE_ROW_END,
   TABLE_ROW_IMPLICIT_END,
@@ -809,6 +810,14 @@ static bool register_footnote_implicit_end(TSLexer *lexer, Scanner *scanner, con
   return false;
 }
 
+static bool register_table_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
+  if (valid_symbols[TABLE_END]) {
+    lexer->result_symbol = TABLE_END;
+    return true;
+  }
+  return false;
+}
+
 static bool register_table_row_end(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint32_t offset) {
   bool is_formatted = false;
   uint32_t format_depth;
@@ -1146,6 +1155,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   // 문서 끝에 도달하면 모두 강제 종료
   if (lexer->eof(lexer)) {
     if (register_table_row_end(lexer, scanner, valid_symbols, 0)) return true;
+    if (register_table_end(lexer, scanner, valid_symbols)) return true;
     if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
     if (register_link_implicit_end(lexer, scanner, valid_symbols)) return true;
@@ -1180,6 +1190,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     mark_end(scanner, lexer);
     if (consume_string(lexer, "}}}")) {
       if (register_table_row_end(lexer, scanner, valid_symbols, 3)) return true;
+      if (register_table_end(lexer, scanner, valid_symbols)) return true;
 
       // block 내부의 모든 허용 문법에 대한 암묵적 종료 처리
       if (register_macro_implicit_end(lexer, scanner, valid_symbols)) return true;
@@ -1577,9 +1588,28 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
           is_valid = false;
           break;
         }
-
-        if (!is_valid && register_paragraph_end(lexer, scanner, valid_symbols)) return true;
+        if (is_valid) {
+          if (lexer->lookahead == '|') {
+            advance(lexer);
+            if (lexer->lookahead != '|' && register_table_end(lexer, scanner, valid_symbols)) return true;
+          } else {
+            if (register_table_end(lexer, scanner, valid_symbols)) return true;
+          }
+        } else {
+          if (register_table_end(lexer, scanner, valid_symbols)) return true;
+          if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
+        }
       } else {
+        if (scanner->paragraph_stack[paragraph_depth] > 0) {
+          if (register_table_end(lexer, scanner, valid_symbols)) return true;
+        } else {
+          if (lexer->lookahead == '|') {
+            advance(lexer);
+            if (lexer->lookahead != '|' && register_table_end(lexer, scanner, valid_symbols)) return true;
+          } else {
+            if (register_table_end(lexer, scanner, valid_symbols)) return true;
+          }
+        }
         if (register_paragraph_end(lexer, scanner, valid_symbols)) return true;
       }
     }
@@ -1596,6 +1626,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
 
       if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
+      if (register_table_end(lexer, scanner, valid_symbols)) return true;
 
       if (valid_symbols[LINE_ENDING]) {
         if (scanner->heading_level < heading_level && scanner->heading_level != STATUS_NO_HEADING_SECTION && valid_symbols[SOFT_LINE_PREFIX]) {
