@@ -1477,9 +1477,13 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       }
     }
 
-    scanner->is_horizontal_line_valid = false;
-    lexer->result_symbol = NONE;
-    return true;
+    if (valid_symbols[NONE]) {
+      scanner->is_horizontal_line_valid = false;
+      lexer->result_symbol = NONE;
+      return true;
+    }
+
+    return false;
   }
   
   // strike 처리
