@@ -457,12 +457,13 @@ static uint8_t match_heading_token(TSLexer *lexer, Scanner *scanner) {
 
   if (open_count == 0 || open_count > 6 || lexer->lookahead != ' ') { return NO_HEADING_TOKEN; }
 
+  advance(lexer);
   mark_end(scanner, lexer);
 
   bool has_trailing_space = false;
   bool has_closing_hash = false;
   uint8_t trailing_equals = 0;
-  int32_t last_char = ' ';
+  int32_t last_char;
 
   while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
     if (lexer->lookahead == '=') {
@@ -1822,6 +1823,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       while (lexer->lookahead != ' ') {
         advance(lexer);
       }
+      advance(lexer);
   
       uint8_t offset = scanner->cached_heading_token - HEADING1_START + 1;
           
@@ -1857,7 +1859,11 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   }
 
   // heading_end 처리
-  if (scanner->heading_status == STATUS_MATCH_HEADING && (lexer->lookahead == '#' || lexer->lookahead == '=')) {
+  if (scanner->heading_status == STATUS_MATCH_HEADING && lexer->lookahead == ' ') {
+    mark_end(scanner, lexer);
+    advance(lexer);
+    if (lexer->lookahead != '#' && lexer->lookahead != '=') return false;
+
     char heading_end_string[100];
     const char *heading_prefix = scanner->is_hidden_heading ? "#" : "";
     strncpy(heading_end_string, heading_prefix, sizeof(heading_end_string) - 1);
@@ -1866,8 +1872,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     int len = strlen(heading_end_string);
     memset(heading_end_string + len, '=', scanner->heading_level);
     heading_end_string[len + scanner->heading_level] = '\0';
-
-    mark_end(scanner, lexer);
 
     if (consume_string(lexer, heading_end_string) && (lexer->lookahead == '\r' || lexer->lookahead == '\n' || lexer->eof(lexer))) {
       if (scanner->simulate == FLAG_NONE) {

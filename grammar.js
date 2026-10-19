@@ -31,7 +31,7 @@ function fallback_inline_rule($, start_rule) {
 function heading_rule($, start_rule) {
   return seq(
     alias(start_rule, $.heading_marker),
-    field("title", repeat1($._node_inline)),
+    optional(field("content", $.heading_content)),
     alias($.heading_end, $.heading_marker),
   )
 }
@@ -205,6 +205,8 @@ module.exports = grammar({
         $.heading1, $.heading2, $.heading3, $.heading4, $.heading5, $.heading6,
         $.hidden_heading1, $.hidden_heading2, $.hidden_heading3, $.hidden_heading4, $.hidden_heading5, $.hidden_heading6,
       ),
+    heading_content: ($) => repeat1($._node_inline),
+
     heading1: ($) => heading_rule($, $.heading1_start),
     heading2: ($) => heading_rule($, $.heading2_start),
     heading3: ($) => heading_rule($, $.heading3_start),
@@ -487,7 +489,8 @@ module.exports = grammar({
     ),
     link_link_inline: $ => repeat1(
       choice(
-        /[^\]\|\}\=\r\n\\@]+/,
+        /[^ \]\|\}\=\r\n\\@]+/,
+        prec(-10, token.immediate(' ')),
         $.escape,
         $.argument,
         prec(-10, token(']')),
@@ -510,7 +513,8 @@ module.exports = grammar({
     ),
     file_link_link: $ => repeat1(
       choice(
-        /[^\]\|\}\=\r\n\\@]+/,
+        /[^ \]\|\}\=\r\n\\@]+/,
+        prec(-10, token.immediate(' ')),
         $.escape,
         $.argument,
         prec(-10, token(']')),
@@ -593,14 +597,14 @@ module.exports = grammar({
     color_fallback_block: $ => fallback_rule($, $.color_fallback_block_start),
 
     _fallback_block_inline: $ => choice(
-      $.if_fallback_block,
-      $.folding_fallback_block,
-      $.syntax_fallback_block,
-      $.wiki_fallback_block,
-      $.style_fallback_block,
-      $.latex_fallback_block,
-      $.scale_fallback_block,
-      $.color_fallback_block
+      $.if_fallback_block_inline,
+      $.folding_fallback_block_inline,
+      $.syntax_fallback_block_inline,
+      $.wiki_fallback_block_inline,
+      $.style_fallback_block_inline,
+      $.latex_fallback_block_inline,
+      $.scale_fallback_block_inline,
+      $.color_fallback_block_inline
     ),
 
     if_fallback_block_inline: $ => fallback_inline_rule($, $.if_fallback_block_start),
@@ -639,7 +643,8 @@ module.exports = grammar({
     nowiki_content_inline: $ => repeat1(
       choice(
         seq($.nowiki_start, optional($.nowiki_content_inline), $._block_end),
-        /[^{}=#\r\n@]+/,
+        /[^ {}=#\r\n@]+/,
+        prec(-10, token.immediate(' ')),
         prec(-10, token('=')),
         prec(-10, token('#')),
         prec(-10, token('{')),
@@ -708,7 +713,8 @@ module.exports = grammar({
       $._greater_than_sign,
     )),
     text_inline: $ => prec(-1, choice(
-      /[^\[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
+      /[^ \[\]{}=#\r\n\\@'\-\~\_\^\,\|]+/,
+      prec(-10, token.immediate(' ')),
       prec(-10, token('#')),
       prec(-10, token('=')),
       prec(-10, token('{')),
