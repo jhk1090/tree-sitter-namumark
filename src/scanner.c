@@ -156,7 +156,8 @@ enum BlockType {
   BLOCK_TYPE_LATEX,
   BLOCK_TYPE_SCALE,
   BLOCK_TYPE_COLOR,
-  BLOCK_TYPE_FALLBACK
+  BLOCK_TYPE_FALLBACK,
+  BLOCK_TYPE_FALLBACK_BREAKABLE
 };
 
 // paragraph_type_stack[n]의 값으로 유효한 값
@@ -221,7 +222,7 @@ static inline bool is_valid_cached_heading_token(uint8_t token) {
 }
 
 static inline bool is_valid_block_type(uint8_t type) {
-  return type > BLOCK_TYPE_NONE && type <= BLOCK_TYPE_FALLBACK;
+  return type > BLOCK_TYPE_NONE && type <= BLOCK_TYPE_FALLBACK_BREAKABLE;
 }
 
 static inline void set_table_stack(Scanner* s) {
@@ -422,9 +423,20 @@ static bool register_block(TSLexer *lexer, Scanner *scanner, const bool *valid_s
     return true;
   }
 
-  if (BLOCK_TYPE != BLOCK_TYPE_FALLBACK && valid_symbols[TOKEN_TYPE + 1]) {
+  if (BLOCK_TYPE != BLOCK_TYPE_FALLBACK && BLOCK_TYPE != BLOCK_TYPE_FALLBACK_BREAKABLE && valid_symbols[TOKEN_TYPE + 1]) {
     if (scanner->block_depth < MAX_BLOCK_DEPTH && can_increment_format_depth(scanner)) {
-      scanner->block_stack[scanner->block_depth++] = BLOCK_TYPE_FALLBACK;
+      uint8_t fallback_block_type = BLOCK_TYPE_FALLBACK;
+      switch (BLOCK_TYPE) {
+        case BLOCK_TYPE_IF:
+        case BLOCK_TYPE_FOLDING:
+        case BLOCK_TYPE_WIKI:
+        case BLOCK_TYPE_SCALE:
+        case BLOCK_TYPE_COLOR:
+          fallback_block_type = BLOCK_TYPE_FALLBACK_BREAKABLE;
+          break;
+        default: break;
+      }
+      scanner->block_stack[scanner->block_depth++] = fallback_block_type;
       reset_format(scanner);
     } else {
       return false;
@@ -504,13 +516,13 @@ static uint8_t match_heading_token(TSLexer *lexer, Scanner *scanner) {
 static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols, uint8_t TOKEN_TYPE, uint8_t BLOCK_TYPE, bool is_header_needed) {
   if (lexer->lookahead != '\r' && lexer->lookahead != '\n') {
     if (lexer->lookahead != ' ') {
-      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
 
     while (lexer->lookahead != '\r' && lexer->lookahead != '\n' && !lexer->eof(lexer)) {
       if (lexer->lookahead == '}') {
         if (consume_string(lexer, "}}}")) {
-          return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+          return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
         }
       } else {
         advance(lexer);
@@ -518,12 +530,12 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *va
     }
   } else {
     if (is_header_needed) {
-      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
   }
 
   if (!consume_newline(lexer)) {
-    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
 
   if (scanner->cached_heading_token == NO_CACHED) {
@@ -532,11 +544,11 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *va
     scanner->simulate = FLAG_NONE;
   }
   if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
-    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
 
   if (!valid_symbols[TOKEN_TYPE]) {
-    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
 
   return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE, BLOCK_TYPE);
@@ -562,18 +574,18 @@ static bool consume_syntax_block(TSLexer *lexer, Scanner *scanner, const bool *v
 
 static bool consume_scale_block(TSLexer *lexer, Scanner *scanner, const bool *valid_symbols) {
   if (!iswdigit(lexer->lookahead)) {
-    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
 
   if (!(lexer->lookahead >= '1' && lexer->lookahead <= '5')) {
-    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
 
   advance(lexer);
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
     advance(lexer);
   } else {
@@ -583,7 +595,7 @@ static bool consume_scale_block(TSLexer *lexer, Scanner *scanner, const bool *va
       scanner->simulate = FLAG_NONE;
     }
     if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
-      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
   }
 
@@ -631,20 +643,20 @@ static bool consume_single_color(TSLexer *lexer) {
 }
 
 static bool consume_color_block(TSLexer *lexer, Scanner* scanner, const bool *valid_symbols) {
-  if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+  if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
 
   if (lexer->lookahead == ',') {
     advance(lexer);
     if (lexer->lookahead != '#') {
-      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
     advance(lexer);
-    if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+    if (!consume_single_color(lexer)) return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
   
   if (!consume_newline(lexer)) {
     if (lexer->lookahead != ' ') {
-      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
     advance(lexer);
   } else {
@@ -654,7 +666,7 @@ static bool consume_color_block(TSLexer *lexer, Scanner* scanner, const bool *va
       scanner->simulate = FLAG_NONE;
     }
     if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
-      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK);
+      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
   }
 
@@ -1148,6 +1160,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       case BLOCK_TYPE_WIKI:
       case BLOCK_TYPE_SCALE:
       case BLOCK_TYPE_COLOR:
+      case BLOCK_TYPE_FALLBACK_BREAKABLE:
         is_breakable_bracket = true;
         break;
       default: break;
