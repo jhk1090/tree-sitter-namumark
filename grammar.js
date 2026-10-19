@@ -629,7 +629,7 @@ module.exports = grammar({
 
     nowiki_content: $ => repeat1(
       choice(
-        seq($.nowiki_start, optional($.nowiki_content), $._block_end),
+        seq($._nowiki_inner_start, optional($.nowiki_content), $._block_end),
         /[^{}=#\r\n@]+/,
         prec(-10, token('=')),
         prec(-10, token('#')),
@@ -642,7 +642,7 @@ module.exports = grammar({
     ),
     nowiki_content_inline: $ => repeat1(
       choice(
-        seq($.nowiki_start, optional($.nowiki_content_inline), $._block_end),
+        seq($._nowiki_inner_start, optional($.nowiki_content_inline), $._block_end),
         /[^ {}=#\r\n@]+/,
         prec(-10, token.immediate(' ')),
         prec(-10, token('=')),
@@ -652,6 +652,17 @@ module.exports = grammar({
         prec(-10, token('@')),
         prec(1, $.argument)
       )
+    ),
+    _nowiki_inner_start: $ => choice(
+      $.nowiki_start,
+      $.if_fallback_block_start,
+      $.folding_fallback_block_start,
+      $.syntax_fallback_block_start,
+      $.wiki_fallback_block_start,
+      $.style_fallback_block_start,
+      $.latex_fallback_block_start,
+      $.scale_fallback_block_start,
+      $.color_fallback_block_start,
     ),
 
     argument: $ => prec.right(seq(
