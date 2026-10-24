@@ -9,9 +9,16 @@ tree-sitter가 사용하는 GLR 파서 알고리즘의 한계로 깨진 문법�
 ### 사용 프로젝트
 - vscode 확장 프로그램: [나무코드](https://github.com/jhk1090/namucode)
 
-### 빌드
+### 개발
+빌드
 ```sh
+npm run generate
 npm run build
+```
+
+Playground (빌드 필요)
+```sh
+npm run playground
 ```
 
 ### 참조한 문서 및 프로젝트
