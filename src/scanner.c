@@ -48,6 +48,7 @@ enum TokenType {
   ARGUMENT_END,
   ARGUMENT_IMPLICIT_END,
   NOWIKI_START,
+  NOWIKI_INNER_START,
   IF_BLOCK_START,
   IF_FALLBACK_BLOCK_START,
   FOLDING_BLOCK_START,
@@ -1919,6 +1920,9 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       if (register_argument_implicit_end(lexer, scanner, valid_symbols)) return true;
       
       mark_end(scanner, lexer);
+      if (top_type == BLOCK_TYPE_NOWIKI) {
+        return register_block(lexer, scanner, valid_symbols, NOWIKI_INNER_START, BLOCK_TYPE_NOWIKI);
+      }
 
       if (lexer->lookahead == '#') {
         advance(lexer);

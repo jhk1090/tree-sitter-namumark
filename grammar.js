@@ -45,6 +45,7 @@ module.exports = grammar({
     $.argument_end,
     $.argument_implicit_end,
     $.nowiki_start,
+    $._nowiki_inner_start,
     $.if_block_start,
     $.if_fallback_block_start,
     $.folding_block_start,
@@ -652,17 +653,6 @@ module.exports = grammar({
         prec(-10, token('@')),
         prec(1, $.argument)
       )
-    ),
-    _nowiki_inner_start: $ => choice(
-      $.nowiki_start,
-      $.if_fallback_block_start,
-      $.folding_fallback_block_start,
-      $.syntax_fallback_block_start,
-      $.wiki_fallback_block_start,
-      $.style_fallback_block_start,
-      $.latex_fallback_block_start,
-      $.scale_fallback_block_start,
-      $.color_fallback_block_start,
     ),
 
     argument: $ => prec.right(seq(
