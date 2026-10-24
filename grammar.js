@@ -316,7 +316,7 @@ module.exports = grammar({
       "#!if",
       optional(field('expression', $.if_block_header)),
       $._newline,
-      optional($.block_content),
+      optional(field('content', $.block_content)),
       $._block_end
     ),
     if_block_header: $ => repeat1(/[^\r\n]+/),
@@ -326,7 +326,7 @@ module.exports = grammar({
       "#!folding",
       optional(field('text', $.block_header)),
       $._newline,
-      optional($.block_content),
+      optional(field('content', $.block_content)),
       $._block_end
     ),
 
@@ -373,7 +373,7 @@ module.exports = grammar({
       "#!wiki",
       optional($.block_header),
       $._newline,
-      optional($.block_content),
+      optional(field('content', $.block_content)),
       $._block_end
     ),
 
@@ -392,14 +392,14 @@ module.exports = grammar({
       $.scale_block_start,
       field("size", $.scale_size),
       choice($._newline, " "),
-      optional($.block_content),
+      optional(field('content', $.block_content)),
       $._block_end
     ),
     scale_block_inline: $ => seq(
       $.scale_block_start,
       field("size", $.scale_size),
       " ",
-      optional($.block_content_inline),
+      optional(field('content', $.block_content_inline)),
       $._block_end
     ),
     scale_size: $ => token(/[+-][1-5]/),
@@ -411,7 +411,7 @@ module.exports = grammar({
         seq(",", field('color2', $.color_color))
       ),
       choice($._newline, " "),
-      optional($.block_content),
+      optional(field('content', $.block_content)),
       $._block_end
     ),
     color_block_inline: $ => seq(
@@ -421,7 +421,7 @@ module.exports = grammar({
         seq(",", field('color2', $.color_color))
       ),
       " ",
-      optional($.block_content_inline),
+      optional(field('content', $.block_content_inline)),
       $._block_end
     ),
     color_color: $ => token(/[^\n\s,]+/),
