@@ -1,8 +1,12 @@
 {
   "name": "tree-sitter-namumark",
-  "version": "0.1.1",
-  "description": "",
-  "main": "index.js",
+  "author": "jhk1090",
+  "version": "0.1.2",
+  "description": "나무마크 tree-sitter 파서",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jhk1090/tree-sitter-namumark.git"
+  },
   "scripts": {
     "generate": "tree-sitter generate",
     "generate:unicode": "node tools/generate_unicode_ranges.js",
@@ -12,8 +16,7 @@
     "parse": "tree-sitter parse test.namu",
     "debug": "tree-sitter parse test.namu -d"
   },
-  "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "prebuildify": "^6.0.1",
     "tree-sitter-cli": "^0.27.0"
