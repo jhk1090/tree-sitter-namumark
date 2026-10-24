@@ -726,7 +726,7 @@ static bool consume_macro(TSLexer *lexer) {
 
   // 매크로 이름 목록 매칭
   static const char *const VALID_NAMES[] = {
-    "anchor", "age", "dday", "youtube", "kakaotv", "vimeo", 
+    "anchor", "age", "dday", "youtube", "vimeo", 
     "nicovideo", "navertv", "math", "include", "ruby", "pagecount", 
     "목차", "tableofcontents", "clearfix", "date", "datetime", 
     "각주", "footnote", "br"

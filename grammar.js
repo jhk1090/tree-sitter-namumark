@@ -1,7 +1,7 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-const required_arg_macros = ["anchor", "age", "dday", "youtube", "kakaotv", "vimeo", "nicovideo", "navertv", "math", "include", "ruby"]
+const required_arg_macros = ["anchor", "age", "dday", "youtube", "vimeo", "nicovideo", "navertv", "math", "include", "ruby"]
 const optional_arg_macros = ["pagecount", "목차", "tableofcontents"]
 const no_arg_macros = ["clearfix", "date", "datetime", "각주", "footnote", "br"]
 
