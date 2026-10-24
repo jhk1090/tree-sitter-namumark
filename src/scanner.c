@@ -1378,7 +1378,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     bool is_valid = false;
     bool is_zero_length = true;
     while (lexer->lookahead != '\n' && lexer->lookahead != '\r' && !lexer->eof(lexer)) {
-      if (lexer->lookahead == ' ' || ('a' <= lexer->lookahead && lexer->lookahead <= 'z') || ('A' <= lexer->lookahead && lexer->lookahead <= 'Z')) {
+      if (lexer->lookahead == ' ' || ('a' <= lexer->lookahead && lexer->lookahead <= 'z') || ('A' <= lexer->lookahead && lexer->lookahead <= 'Z') || lexer->lookahead == ',' || lexer->lookahead == '#') {
         is_zero_length = false;
         advance(lexer);
         continue;
