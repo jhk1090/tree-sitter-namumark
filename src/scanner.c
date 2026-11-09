@@ -539,15 +539,6 @@ static bool consume_depth_block(TSLexer *lexer, Scanner *scanner, const bool *va
     return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
 
-  if (scanner->cached_heading_token == NO_CACHED) {
-    scanner->simulate = FLAG_SIMULATE_HEADING;
-    scanner->cached_heading_token = match_heading_token(lexer, scanner);
-    scanner->simulate = FLAG_NONE;
-  }
-  if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
-    return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
-  }
-
   if (!valid_symbols[TOKEN_TYPE]) {
     return register_block(lexer, scanner, valid_symbols, TOKEN_TYPE + 1, BLOCK_TYPE_FALLBACK_BREAKABLE);
   }
@@ -589,15 +580,6 @@ static bool consume_scale_block(TSLexer *lexer, Scanner *scanner, const bool *va
       return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
     advance(lexer);
-  } else {
-    if (scanner->cached_heading_token == NO_CACHED) {
-      scanner->simulate = FLAG_SIMULATE_HEADING;
-      scanner->cached_heading_token = match_heading_token(lexer, scanner);
-      scanner->simulate = FLAG_NONE;
-    }
-    if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
-      return register_block(lexer, scanner, valid_symbols, SCALE_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
-    }
   }
 
   return register_block(lexer, scanner, valid_symbols, SCALE_BLOCK_START, BLOCK_TYPE_SCALE);
@@ -660,15 +642,6 @@ static bool consume_color_block(TSLexer *lexer, Scanner* scanner, const bool *va
       return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
     }
     advance(lexer);
-  } else {
-    if (scanner->cached_heading_token == NO_CACHED) {
-      scanner->simulate = FLAG_SIMULATE_HEADING;
-      scanner->cached_heading_token = match_heading_token(lexer, scanner);
-      scanner->simulate = FLAG_NONE;
-    }
-    if (scanner->cached_heading_token != NO_HEADING_TOKEN) {
-      return register_block(lexer, scanner, valid_symbols, COLOR_FALLBACK_BLOCK_START, BLOCK_TYPE_FALLBACK_BREAKABLE);
-    }
   }
 
   return register_block(lexer, scanner, valid_symbols, COLOR_BLOCK_START, BLOCK_TYPE_COLOR);
@@ -1154,19 +1127,6 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   uint16_t paragraph_depth = scanner->block_depth + get_table_stack(scanner);
   uint16_t paragraph_type_stack_first_index = scanner->paragraph_type_stack_size - scanner->paragraph_stack[paragraph_depth];
 
-  bool is_breakable_bracket = false;
-  switch (top_type) {
-      case BLOCK_TYPE_IF:
-      case BLOCK_TYPE_FOLDING:
-      case BLOCK_TYPE_WIKI:
-      case BLOCK_TYPE_SCALE:
-      case BLOCK_TYPE_COLOR:
-      case BLOCK_TYPE_FALLBACK_BREAKABLE:
-        is_breakable_bracket = true;
-        break;
-      default: break;
-  }
-
   // 문서 끝에 도달하면 모두 강제 종료
   if (lexer->eof(lexer)) {
     if (register_table_row_end(lexer, scanner, valid_symbols, 0)) return true;
@@ -1639,11 +1599,10 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       scanner->simulate = FLAG_NONE;
     }
     
-    if (scanner->cached_heading_token != NO_HEADING_TOKEN && (top_type == BLOCK_TYPE_NONE || is_breakable_bracket)) {
+    if (scanner->cached_heading_token != NO_HEADING_TOKEN && top_type == BLOCK_TYPE_NONE) {
       uint8_t heading_level_offset = scanner->cached_heading_token - HEADING1_START + 1;
       uint8_t heading_level = heading_level_offset > 6 ? heading_level_offset - 6 : heading_level_offset;
 
-      if (register_bracket_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_table_row_implicit_end(lexer, scanner, valid_symbols)) return true;
       if (register_table_end(lexer, scanner, valid_symbols)) return true;
 
@@ -1856,7 +1815,7 @@ static bool scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
       return true;
     }
   
-    if ((top_type == BLOCK_TYPE_NONE || is_breakable_bracket)) {
+    if (top_type == BLOCK_TYPE_NONE) {
       uint8_t heading_token = match_heading_token(lexer, scanner);
       if (heading_token != NO_HEADING_TOKEN) {
         if (valid_symbols[heading_token]) {
